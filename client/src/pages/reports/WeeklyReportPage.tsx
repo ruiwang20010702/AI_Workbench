@@ -449,7 +449,7 @@ export const WeeklyReportPage: React.FC = () => {
                         placeholder="周报标题"
                       />
                     ) : (
-                      <h2 className="text-2xl font-bold">{currentReport.title}</h2>
+                    <h2 className="text-2xl font-bold">{currentReport.title}</h2>
                     )}
                     <span
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -492,10 +492,10 @@ export const WeeklyReportPage: React.FC = () => {
                     />
                   </div>
                 ) : (
-                  <div
-                    className="p-6 prose max-w-none"
-                    dangerouslySetInnerHTML={{ __html: currentReport.content_html || '' }}
-                  />
+                <div
+                  className="p-6 prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: currentReport.content_html || '' }}
+                />
                 )}
 
                 {/* Actions */}
@@ -533,50 +533,50 @@ export const WeeklyReportPage: React.FC = () => {
                         <Trash2 className="w-4 h-4" />
                         <span>删除</span>
                       </button>
-                      {currentReport.status === 'draft' && (
-                        <button
-                          onClick={handlePublish}
-                          className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                        >
-                          <Send className="w-4 h-4" />
-                          <span>发布</span>
-                        </button>
-                      )}
-                      {!currentReport.ai_optimized && (
-                        <button
-                          onClick={handleOptimize}
-                          className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-                        >
-                          <Sparkles className="w-4 h-4" />
-                          <span>AI优化</span>
-                        </button>
-                      )}
-                      <div className="relative group">
-                        <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                          <Download className="w-4 h-4" />
-                          <span>下载</span>
-                        </button>
+                  {currentReport.status === 'draft' && (
+                    <button
+                      onClick={handlePublish}
+                      className="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      <Send className="w-4 h-4" />
+                      <span>发布</span>
+                    </button>
+                  )}
+                  {!currentReport.ai_optimized && (
+                    <button
+                      onClick={handleOptimize}
+                      className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>AI优化</span>
+                    </button>
+                  )}
+                  <div className="relative group">
+                    <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                      <Download className="w-4 h-4" />
+                      <span>下载</span>
+                    </button>
                         <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block bg-white border border-gray-200 rounded-lg shadow-lg p-2 w-40 z-10">
-                          <button
-                            onClick={() => handleDownload('docx')}
-                            className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
-                          >
-                            Word (docx)
-                          </button>
-                          <button
-                            onClick={() => handleDownload('markdown')}
-                            className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
-                          >
-                            Markdown (md)
-                          </button>
-                          <button
-                            onClick={() => handleDownload('html')}
-                            className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
-                          >
-                            HTML
-                          </button>
-                        </div>
-                      </div>
+                      <button
+                        onClick={() => handleDownload('docx')}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+                      >
+                        Word (docx)
+                      </button>
+                      <button
+                        onClick={() => handleDownload('markdown')}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+                      >
+                        Markdown (md)
+                      </button>
+                      <button
+                        onClick={() => handleDownload('html')}
+                        className="block w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded"
+                      >
+                        HTML
+                      </button>
+                    </div>
+                  </div>
                     </>
                   )}
                 </div>
@@ -618,17 +618,17 @@ export const WeeklyReportPage: React.FC = () => {
                             </div>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <span
-                              className={`px-2 py-1 rounded text-xs font-medium ${
-                                report.status === 'published'
-                                  ? 'bg-green-100 text-green-800'
-                                  : report.status === 'draft'
-                                  ? 'bg-yellow-100 text-yellow-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
-                            >
-                              {report.status === 'draft' ? '草稿' : report.status === 'published' ? '已发布' : '已归档'}
-                            </span>
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              report.status === 'published'
+                                ? 'bg-green-100 text-green-800'
+                                : report.status === 'draft'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-gray-100 text-gray-800'
+                            }`}
+                          >
+                            {report.status === 'draft' ? '草稿' : report.status === 'published' ? '已发布' : '已归档'}
+                          </span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

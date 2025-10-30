@@ -19,30 +19,35 @@ app.set('trust proxy', 1);
 // 安全中间件
 app.use(helmet());
 
-// CORS配置：支持逗号分隔的多个允许源
-const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:3000';
-const allowedOrigins = String(rawCorsOrigin)
-  .split(',')
-  .map((o) => o.trim())
-  .filter(Boolean);
+// CORS配置：开发环境允许所有源
+const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// 统一的 CORS 选项，覆盖预检与实际请求
-const corsOptions: cors.CorsOptions = {
-  origin: (origin, callback) => {
-    // 允许非浏览器环境或同源无 Origin 的请求
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 204,
-};
+const corsOptions: cors.CorsOptions = isDevelopment
+  ? {
+      origin: true, // 开发环境允许所有源
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    }
+  : {
+      origin: (origin, callback) => {
+        const rawCorsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:3000';
+        const allowedOrigins = String(rawCorsOrigin)
+          .split(',')
+          .map((o) => o.trim())
+          .filter(Boolean);
+        
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        return callback(new Error('Not allowed by CORS'));
+      },
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+    };
 
 // 为所有请求添加 CORS
 app.use(cors(corsOptions));
-// 显式处理预检请求，确保返回正确的 CORS 响应头
 app.options('*', cors(corsOptions));
 
 // 压缩响应
