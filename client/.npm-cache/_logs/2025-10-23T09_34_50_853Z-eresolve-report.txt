@@ -1,0 +1,20 @@
+'Log files:
+C:\Users\wangrui003\Desktop\C1\AI_Workbench\client\.npm-cache\_logs\2025-10-23T09_34_50_853Z-debug-0.log
+
+# npm resolution error report
+
+While resolving: ai-notes-client@0.0.0
+Found: @tiptap/pm@2.26.3
+node_modules/@tiptap/pm
+  @tiptap/pm@"^2.1.13" from the root project
+
+Could not resolve dependency:
+peer @tiptap/pm@"^3.7.2" from @tiptap/core@3.7.2
+node_modules/@tiptap/core
+  peer @tiptap/core@"^3.7.2" from @tiptap/extension-underline@3.7.2
+  node_modules/@tiptap/extension-underline
+    @tiptap/extension-underline@"*" from the root project
+
+Fix the upstream dependency conflict, or retry
+this command with --force or --legacy-peer-deps
+to accept an incorrect (and potentially broken) dependency resolution.
