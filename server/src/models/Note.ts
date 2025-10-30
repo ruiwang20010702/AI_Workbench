@@ -105,8 +105,8 @@ export class NoteModel {
     is_favorite?: boolean;
     is_archived?: boolean;
   }): Promise<Note | null> {
-    const fields = [];
-    const values = [];
+    const fields: string[] = [];
+    const values: any[] = [];
     let paramCount = 1;
 
     if (noteData.title !== undefined) {

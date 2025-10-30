@@ -5,6 +5,7 @@ import todoRoutes from './todos';
 import aiRoutes from './ai';
 import notificationRoutes from './notifications';
 import projectRoutes from './projects';
+import weeklyReportsRoutes from './weeklyReports';
 
 const router = Router();
 
@@ -25,6 +26,9 @@ router.use('/notifications', notificationRoutes);
 
 // 项目管理相关路由
 router.use('/projects', projectRoutes);
+
+// 周报相关路由
+router.use('/reports', weeklyReportsRoutes);
 
 // 健康检查
 router.get('/health', (req, res) => {

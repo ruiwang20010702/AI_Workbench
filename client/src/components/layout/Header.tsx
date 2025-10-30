@@ -2,7 +2,7 @@ import React, { useState} from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   Home, FileText, CheckSquare, Sparkles, Settings, 
-  LogOut, User, X, Bell, Menu
+  LogOut, User, X, Bell, Menu, BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { NotificationDropdown } from '../notifications';
@@ -22,6 +22,7 @@ export const Header: React.FC = () => {
     { name: '首页', href: '/', icon: Home },
     { name: '笔记', href: '/notes', icon: FileText },
     { name: '待办', href: '/todos', icon: CheckSquare },
+    { name: '周报', href: '/reports/weekly', icon: BarChart3 },
     { name: 'AI助手', href: '/ai', icon: Sparkles },
     { name: '设置', href: '/settings', icon: Settings },
   ];

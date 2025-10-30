@@ -174,8 +174,8 @@ export class TodoModel {
     completed?: boolean;
     completed_at?: Date | null;
   }): Promise<Todo | null> {
-    const fields = [];
-    const values = [];
+    const fields: string[] = [];
+    const values: any[] = [];
     let paramCount = 1;
 
     if (todoData.title !== undefined) {

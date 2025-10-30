@@ -8,7 +8,8 @@ import {
   Sparkles,
   Home,
   FolderKanban,
-  Activity
+  Activity,
+  BarChart3
 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
@@ -29,6 +30,7 @@ const baseNavigation: SidebarItem[] = [
   { name: '所有笔记', href: '/notes', icon: FileText },
   { name: '待办事项', href: '/todos', icon: CheckSquare },
   { name: '项目管理', href: '/projects', icon: FolderKanban },
+  { name: '周报管理', href: '/reports/weekly', icon: BarChart3 },
   { name: 'AI 助手', href: '/ai', icon: Sparkles },
 ];
 

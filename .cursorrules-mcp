@@ -1,0 +1,30 @@
+# Supabase MCP Configuration for AI_Workbench
+
+## MCP服务器配置
+
+本项目使用Supabase MCP服务器来实现AI与数据库的直接交互。
+
+### 配置步骤
+
+1. 在Cursor设置中添加MCP服务器
+2. 使用项目的Supabase凭证
+3. 重启Cursor以激活MCP连接
+
+### 所需环境变量
+
+- `SUPABASE_URL`: Supabase项目URL
+- `SUPABASE_SERVICE_ROLE_KEY`: Service Role Key（完整数据库访问权限）
+
+### 功能说明
+
+配置完成后，AI可以：
+- ✅ 直接查询数据库表
+- ✅ 执行SQL迁移脚本
+- ✅ 验证数据结构
+- ✅ 调试数据问题
+- ✅ 生成数据统计报告
+
+### 安全提示
+
+⚠️ Service Role Key具有完整数据库权限，请妥善保管，不要提交到代码仓库。
+

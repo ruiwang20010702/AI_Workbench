@@ -11,6 +11,7 @@ import { NotesPage, NoteEditorPage } from './pages/notes';
 import { TodosPage, TodoEditorPage } from './pages/todos';
 import { AIAssistantPage } from './pages/ai';
 import { ProjectsPage } from './pages/ProjectsPage';
+import { WeeklyReportPage } from './pages/reports';
 import { TestPage } from './pages/TestPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { ActivityPage } from './pages/ActivityPage';
@@ -188,7 +189,17 @@ function App() {
             }
           />
 
-          
+          {/* 周报管理路由 */}
+          <Route
+            path="/reports/weekly"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <WeeklyReportPage />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
 
           {/* 全部活动页面 */}
           <Route
