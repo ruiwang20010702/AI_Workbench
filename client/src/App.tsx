@@ -10,6 +10,7 @@ import { Loading } from './components/ui';
 import { NotesPage, NoteEditorPage } from './pages/notes';
 import { TodosPage, TodoEditorPage } from './pages/todos';
 import { AIAssistantPage } from './pages/ai';
+import { MultiAssistantPage } from './pages/ai/MultiAssistantPage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { WeeklyReportPage } from './pages/reports';
 import { TestPage } from './pages/TestPage';
@@ -168,6 +169,16 @@ function App() {
           {/* AI助手路由 */}
           <Route
             path="/ai"
+            element={
+              <ProtectedRoute>
+                <MultiAssistantPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          {/* 旧版AI助手（保留用于参考） */}
+          <Route
+            path="/ai/legacy"
             element={
               <ProtectedRoute>
                 <Layout>

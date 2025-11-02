@@ -53,4 +53,7 @@ router.get('/usage/history', AIController.getUsageHistory);
 // 获取最近的AI使用记录
 router.get('/usage/recent', AIController.getRecentUsage);
 
+// 智能问答对话
+router.post('/chat', AIController.chat);
+
 export default router;

@@ -66,7 +66,7 @@ export interface Notification {
 export interface AIUsageLog {
   id: string;
   user_id: string;
-  action_type: 'generate' | 'rewrite' | 'summarize' | 'extract_todos' | 'search' | 'translate' | 'assistant_qa' | 'analyze';
+  action_type: 'generate' | 'rewrite' | 'summarize' | 'extract_todos' | 'search' | 'translate' | 'assistant_qa' | 'analyze' | 'recommend' | 'predict';
   model_name: string;
   input_tokens: number;
   output_tokens: number;

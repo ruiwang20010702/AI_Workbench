@@ -28,31 +28,50 @@
     box-sizing: border-box;
   }
 
-  /* 自定义滚动条 */
+  /* 自定义滚动条 - 浅色模式 */
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;
+    height: 12px;
   }
 
   ::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 4px;
+    background: #e2e8f0;
+    border-radius: 6px;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+    background: #94a3b8;
+    border-radius: 6px;
+    border: 3px solid #e2e8f0;
     transition: background-color 0.2s;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: #64748b;
   }
 
-  /* Firefox 滚动条 */
+  /* Firefox 滚动条 - 浅色模式 */
   * {
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 #f1f5f9;
+    scrollbar-width: auto;
+    scrollbar-color: #94a3b8 #e2e8f0;
+  }
+
+  /* 暗色模式滚动条 */
+  .dark ::-webkit-scrollbar-track {
+    background: #374151;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    background: #6b7280;
+    border-color: #374151;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+  }
+
+  .dark * {
+    scrollbar-color: #6b7280 #374151;
   }
 }
 

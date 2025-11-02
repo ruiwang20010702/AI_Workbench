@@ -1,0 +1,392 @@
+/**
+ * ChatArea - 对话区域组件
+ * 显示消息列表和输入框
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Copy, Bot, User, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { Assistant } from '../../services/assistantApi';
+import { Topic } from '../../services/topicApi';
+import { Message, sendMessage, getMessages } from '../../services/messageApi';
+
+interface ChatAreaProps {
+  assistant: Assistant | null;
+  topic: Topic | null;
+  onTopicUpdate?: () => void;
+  onCreateTopic?: () => Promise<Topic | void>;
+}
+
+export const ChatArea: React.FC<ChatAreaProps> = ({
+  assistant,
+  topic,
+  onTopicUpdate,
+  onCreateTopic
+}) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // 加载消息
+  useEffect(() => {
+    console.log('[ChatArea] useEffect triggered, topic:', topic);
+    if (topic) {
+      console.log('[ChatArea] Topic exists, calling loadMessages()');
+      loadMessages();
+    } else {
+      console.log('[ChatArea] No topic, clearing messages');
+      setMessages([]);
+    }
+  }, [topic]);
+
+  // 自动滚动到底部（仅在新消息到达时）
+  useEffect(() => {
+    // 使用 requestAnimationFrame 确保 DOM 完全渲染后再滚动
+    requestAnimationFrame(() => {
+      scrollToBottom();
+    });
+  }, [messages]);
+
+  // 自动调整输入框高度
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [inputText]);
+
+  const scrollToBottom = () => {
+    // 优先使用 scrollIntoView，更可靠
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+      console.log('[ChatArea] Scrolled using scrollIntoView');
+    } else if (messagesContainerRef.current) {
+      // 备选方案：使用 scrollTo
+      const container = messagesContainerRef.current;
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: 'smooth'
+      });
+      console.log('[ChatArea] Scrolled using scrollTo, scrollHeight:', container.scrollHeight);
+    }
+  };
+
+  const loadMessages = async () => {
+    if (!topic) return;
+
+    try {
+      setLoadingMessages(true);
+      console.log('[ChatArea] Loading messages for topic:', topic.id);
+      const response = await getMessages(topic.id);
+      console.log('[ChatArea] Messages loaded:', response);
+      setMessages(response.messages || []);
+    } catch (error: any) {
+      console.error('[ChatArea] Failed to load messages:', error);
+      console.error('[ChatArea] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      // 显示错误提示
+      alert(`加载消息失败: ${error.message || '未知错误'}`);
+    } finally {
+      setLoadingMessages(false);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !assistant || loading) return;
+
+    // 如果没有 topic，先创建一个
+    let currentTopic = topic;
+    if (!currentTopic && onCreateTopic) {
+      console.log('[ChatArea] No topic exists, creating new topic...');
+      try {
+        const newTopic = await onCreateTopic();
+        if (!newTopic) {
+          console.error('[ChatArea] Failed to create topic: onCreateTopic returned nothing');
+          alert('创建对话失败，请重试');
+          return;
+        }
+        currentTopic = newTopic;
+        console.log('[ChatArea] New topic created:', currentTopic);
+      } catch (error) {
+        console.error('[ChatArea] Failed to create topic:', error);
+        alert('创建对话失败，请重试');
+        return;
+      }
+    }
+
+    if (!currentTopic) {
+      console.error('[ChatArea] No topic available and cannot create one');
+      alert('请先选择或创建一个对话');
+      return;
+    }
+
+    const userMessage = inputText.trim();
+    setInputText('');
+
+    // 立即显示用户消息（乐观更新）
+    const tempUserMessage: Message = {
+      id: `temp-${Date.now()}`,
+      topic_id: currentTopic.id,
+      role: 'user',
+      content: userMessage,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, tempUserMessage]);
+
+    try {
+      setLoading(true);
+
+      // 发送消息到后端
+      console.log('[ChatArea] Sending message to topic:', currentTopic.id);
+      const response = await sendMessage(currentTopic.id, {
+        content: userMessage
+      });
+      console.log('[ChatArea] Message sent successfully:', response);
+
+      // 刷新消息列表（会替换临时消息为真实消息）
+      await loadMessages();
+      
+      // 通知父组件更新主题列表
+      onTopicUpdate?.();
+    } catch (error: any) {
+      console.error('[ChatArea] Failed to send message:', error);
+      console.error('[ChatArea] Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      // 移除临时消息
+      setMessages(prev => prev.filter(msg => msg.id !== tempUserMessage.id));
+      alert(error.response?.data?.message || error.message || '发送消息失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  const handleCopyMessage = async (content: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      // 可以添加一个提示
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  // 空状态 - 没有选择助手
+  if (!assistant) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center text-gray-500 dark:text-gray-400">
+          <Bot className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+          <p className="text-lg font-medium">欢迎使用多助手系统</p>
+          <p className="text-sm mt-2">请从左侧选择一个助手开始对话</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 空状态 - 没有选择主题
+  if (!topic) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <div className="text-center text-gray-500 dark:text-gray-400">
+          <Bot className="w-16 h-16 mx-auto mb-4 text-gray-300 dark:text-gray-600" />
+          <p className="text-lg font-medium">Hello, I'm {assistant.name}. You can start chatting with me right away</p>
+          <p className="text-sm mt-2">请从左侧创建或选择一个对话主题</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col bg-white dark:bg-gray-900">
+      {/* 顶部标题栏 */}
+      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center gap-3">
+          <Bot className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {assistant.name}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {topic.title}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* 消息列表 - 固定高度，独立滚动 */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-scroll px-6 py-4"
+        style={{ minHeight: 0 }}
+      >
+        {loadingMessages ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            <div className="text-center">
+              <Bot className="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+              <p className="text-sm">开始新对话</p>
+              <p className="text-xs mt-1">输入消息开始与 {assistant.name} 对话</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="space-y-6 max-w-4xl mx-auto">
+              {messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`flex gap-4 ${
+                    message.role === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
+                >
+                {message.role === 'assistant' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                )}
+
+                <div
+                  className={`flex-1 max-w-3xl ${
+                    message.role === 'user' ? 'text-right' : ''
+                  }`}
+                >
+                  <div
+                    className={`inline-block px-4 py-3 rounded-2xl ${
+                      message.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                    }`}
+                  >
+                    {message.role === 'assistant' ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown
+                          components={{
+                            code({ node, inline, className, children, ...props }) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              return !inline && match ? (
+                                <SyntaxHighlighter
+                                  style={vscDarkPlus}
+                                  language={match[1]}
+                                  PreTag="div"
+                                  {...props}
+                                >
+                                  {String(children).replace(/\n$/, '')}
+                                </SyntaxHighlighter>
+                              ) : (
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              );
+                            }
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <div className="whitespace-pre-wrap break-words">
+                        {message.content}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    className={`flex items-center gap-2 mt-1 text-xs text-gray-500 dark:text-gray-400 ${
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
+                    }`}
+                  >
+                    <span>
+                      {new Date(message.created_at).toLocaleTimeString('zh-CN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </span>
+                    {message.role === 'assistant' && (
+                      <button
+                        onClick={() => handleCopyMessage(message.content)}
+                        className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        title="复制"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {message.role === 'user' && (
+                  <div className="flex-shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
+                      <User className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            </div>
+            {/* 滚动定位锚点 */}
+            <div ref={messagesEndRef} className="h-1" />
+          </>
+        )}
+      </div>
+
+      {/* 输入区域 */}
+      <div className="flex-shrink-0 px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex gap-3 items-end">
+            <textarea
+              ref={textareaRef}
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder="Type your message here..."
+              className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-gray-100 max-h-32 overflow-y-auto"
+              rows={1}
+              disabled={loading}
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!inputText.trim() || loading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            Press Enter to send, Shift+Enter for new line
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+

@@ -268,4 +268,102 @@ export class AIService {
     
     return tags;
   }
+
+  // 聊天补全（用于多助手系统）
+  static async chatCompletion(params: {
+    messages: Array<{ role: string; content: string }>;
+    model?: string;
+    temperature?: number;
+    top_p?: number;
+    max_tokens?: number;
+    apiKey?: string;
+  }): Promise<{
+    content: string;
+    usage?: {
+      prompt_tokens: number;
+      completion_tokens: number;
+      total_tokens: number;
+    };
+    model: string;
+  }> {
+    try {
+      console.log('[AIService.chatCompletion] 开始调用AI API');
+      
+      const { apiKey, model, baseUrl } = this.getAPIConfig({
+        model: params.model,
+        apiKey: params.apiKey
+      });
+      
+      console.log('[AIService.chatCompletion] API配置:', {
+        model,
+        baseUrl,
+        apiKeyExists: !!apiKey,
+        apiKeyPrefix: apiKey?.substring(0, 10) + '...'
+      });
+      
+      if (!apiKey || apiKey === 'your-siliconflow-api-key') {
+        throw new Error('API密钥未配置或使用默认值，请在环境变量或前端设置中配置有效的API密钥');
+      }
+
+      const requestBody = {
+        model: model,
+        messages: params.messages,
+        max_tokens: params.max_tokens || 2000,
+        temperature: params.temperature || 0.7,
+        top_p: params.top_p || 0.9,
+        stream: false
+      };
+
+      console.log('[AIService.chatCompletion] 请求体:', {
+        model: requestBody.model,
+        messagesCount: requestBody.messages.length,
+        max_tokens: requestBody.max_tokens,
+        temperature: requestBody.temperature
+      });
+
+      const response = await axios.post(
+        `${baseUrl}/chat/completions`,
+        requestBody,
+        {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 60000
+        }
+      );
+
+      console.log('[AIService.chatCompletion] API响应状态:', response.status);
+
+      if (response.data?.choices?.[0]?.message?.content) {
+        console.log('[AIService.chatCompletion] AI回复成功');
+        return {
+          content: response.data.choices[0].message.content.trim(),
+          usage: response.data.usage ? {
+            prompt_tokens: response.data.usage.prompt_tokens || 0,
+            completion_tokens: response.data.usage.completion_tokens || 0,
+            total_tokens: response.data.usage.total_tokens || 0
+          } : undefined,
+          model: model
+        };
+      }
+
+      throw new Error('AI生成失败，未返回有效内容');
+    } catch (error: any) {
+      console.error('[AIService.chatCompletion] Chat completion error:', error);
+      console.error('[AIService.chatCompletion] Error response:', error.response?.data);
+      
+      if (error.response?.status === 401) {
+        throw new Error('API密钥无效或已过期');
+      } else if (error.response?.status === 429) {
+        throw new Error('请求过于频繁，请稍后再试');
+      } else if (error.response?.status === 400) {
+        throw new Error('请求参数错误');
+      } else if (error.code === 'ECONNABORTED') {
+        throw new Error('请求超时，请稍后再试');
+      }
+      
+      throw new Error(`Chat completion失败: ${error.message}`);
+    }
+  }
 }

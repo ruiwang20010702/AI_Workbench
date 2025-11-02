@@ -6,6 +6,9 @@ import { AIUsageLogModel } from '../models/AIUsageLog';
 import { NoteModel } from '../models/Note';
 import { TodoModel } from '../models/Todo';
 import { supabaseAdmin } from '../config/database';
+import { IntentService } from '../services/intentService';
+import { DataRetrievalService } from '../services/dataRetrievalService';
+import { AnswerService } from '../services/answerService';
 
 export class AIController {
   // AI文本生成
@@ -888,6 +891,124 @@ export class AIController {
     } catch (error: any) {
       console.error('获取预测分析错误:', error);
       return res.status(500).json({ success: false, message: error.message || '服务器内部错误' });
+    }
+  }
+
+  // 智能问答对话
+  static async chat(req: Request, res: Response): Promise<Response | void> {
+    try {
+      if (!req.user) {
+        return res.status(401).json({
+          success: false,
+          message: '未认证的用户'
+        });
+      }
+
+      const { question, conversationId, context, model, apiKey } = req.body;
+
+      // 验证问题
+      if (!question || typeof question !== 'string') {
+        return res.status(400).json({
+          success: false,
+          message: '问题不能为空'
+        });
+      }
+
+      // 验证问题长度
+      if (question.length > 500) {
+        return res.status(400).json({
+          success: false,
+          message: '问题过长，请控制在500字以内'
+        });
+      }
+
+      // 验证上下文长度
+      if (context && Array.isArray(context) && context.length > 10) {
+        return res.status(400).json({
+          success: false,
+          message: '上下文过长'
+        });
+      }
+
+      console.log('收到问答请求:', { question, conversationId, userId: req.user.id });
+
+      // 1. 识别意图
+      const intent = await IntentService.recognizeIntent(question, { model, apiKey });
+      console.log('意图识别结果:', intent);
+
+      // 2. 检索数据
+      const data = await DataRetrievalService.retrieveData(req.user.id, intent);
+      console.log('检索到的数据:', {
+        notes: data.notes?.length || 0,
+        projects: data.projects?.length || 0,
+        todos: data.todos?.length || 0,
+        statistics: data.statistics
+      });
+
+      // 3. 格式化上下文
+      const dataContext = DataRetrievalService.formatDataAsContext(data);
+
+      // 4. 生成回答
+      let answer: string;
+      
+      if (!dataContext || dataContext.trim() === '') {
+        // 没有数据时使用预设回答
+        answer = AnswerService.generateNoDataResponse(question, intent.type);
+      } else {
+        // 有数据时调用AI生成回答
+        answer = await AnswerService.generateAnswer(
+          question,
+          dataContext,
+          context,
+          { model, apiKey }
+        );
+      }
+
+      console.log('生成的回答长度:', answer.length);
+
+      // 5. 计算token使用量
+      const inputTokens = Math.ceil((question.length + dataContext.length) / 4);
+      const outputTokens = Math.ceil(answer.length / 4);
+      const totalTokens = inputTokens + outputTokens;
+
+      // 6. 记录使用日志
+      await AIUsageLogModel.create({
+        user_id: req.user.id,
+        action_type: 'assistant_qa',
+        model_name: model || 'moonshotai/Kimi-K2-Instruct-0905',
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_cents: Math.round(totalTokens * 0.01)
+      });
+
+      // 7. 返回结果
+      res.json({
+        success: true,
+        message: '问答成功',
+        data: {
+          answer,
+          conversationId: conversationId || `conv_${Date.now()}`,
+          metadata: {
+            intent: intent.type,
+            dataSource: Object.keys(data).filter(key => {
+              const value = data[key as keyof typeof data];
+              return Array.isArray(value) ? value.length > 0 : !!value;
+            }),
+            itemsFound: [
+              ...(data.notes || []),
+              ...(data.projects || []),
+              ...(data.todos || [])
+            ].length,
+            tokensUsed: totalTokens
+          }
+        }
+      });
+    } catch (error: any) {
+      console.error('AI问答错误:', error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || '服务器内部错误'
+      });
     }
   }
 }

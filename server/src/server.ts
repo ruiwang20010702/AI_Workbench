@@ -2,7 +2,7 @@ import app from './app';
 import { supabaseAdmin } from './config/database';
 import { SchedulerService } from './services/schedulerService';
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // 测试数据库连接
 async function testDatabaseConnection() {

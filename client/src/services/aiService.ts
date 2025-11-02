@@ -462,5 +462,34 @@ export const aiService = {
       params: { limit } 
     });
     return response.data.data;
+  },
+
+  // 智能问答对话
+  async chat(request: {
+    question: string;
+    conversationId?: string;
+    context?: Array<{ role: 'user' | 'assistant'; content: string }>;
+  }): Promise<{
+    answer: string;
+    conversationId: string;
+    metadata: {
+      intent: string;
+      dataSource: string[];
+      itemsFound: number;
+      tokensUsed: number;
+    };
+  }> {
+    const config = getAIConfig();
+    const model = config.selectedModel;
+    const apiKey = getApiKeyForModel(model);
+    
+    const requestWithConfig = {
+      ...request,
+      model,
+      apiKey
+    };
+    
+    const response = await apiClient.post('/ai/chat', requestWithConfig);
+    return response.data.data;
   }
 };
