@@ -30,7 +30,7 @@ export const registerSchema = Joi.object({
       'any.required': '用户名是必填项'
     }),
   email: Joi.string()
-    .email()
+    .email({ minDomainSegments: 1, tlds: false })  // 允许没有 TLD 的域名（如 localhost）
     .required()
     .messages({
       'string.email': '请输入有效的邮箱地址',
@@ -58,7 +58,7 @@ export const registerSchema = Joi.object({
 // 用户登录验证
 export const loginSchema = Joi.object({
   email: Joi.string()
-    .email()
+    .email({ minDomainSegments: 1, tlds: false })  // 允许没有 TLD 的域名（如 localhost）
     .required()
     .messages({
       'string.email': '请输入有效的邮箱地址',

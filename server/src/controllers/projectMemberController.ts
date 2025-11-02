@@ -344,3 +344,29 @@ export const getRecentMembers = async (req: Request, res: Response): Promise<Res
     return res.status(500).json({ error: 'Internal server error' });
   }
 };
+
+/**
+ * 根据邮箱批量查找用户
+ * POST /api/projects/members/find-by-emails
+ */
+export const findUsersByEmails = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const userId = req.user?.id;
+    const { emails } = req.body as { emails: string[] };
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      return res.status(400).json({ error: 'Emails array is required' });
+    }
+
+    const users = await ProjectMemberModel.findUsersByEmails(emails);
+
+    return res.json(users);
+  } catch (error) {
+    console.error('Error finding users by emails:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+};

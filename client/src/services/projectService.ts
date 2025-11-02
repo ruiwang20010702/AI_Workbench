@@ -17,7 +17,8 @@ export interface Project {
   tasks_total?: number;
   tasks_completed?: number;
   progress?: number;
-  team_members?: number;
+  member_count?: number;
+  team_members?: number; // 兼容旧字段
   sub_projects?: number;
   // 标签
   tags?: string[];
@@ -392,6 +393,38 @@ class ProjectService {
       params: { limit }
     });
     return response.data;
+  }
+
+  /**
+   * 根据邮箱批量查找用户（不排除已在项目中的用户）
+   * 用于批量导入时判断用户是否已注册
+   */
+  async findUsersByEmails(emails: string[]): Promise<Array<{ id: string; display_name: string; email: string }>> {
+    const response = await apiClient.post('/projects/members/find-by-emails', { emails });
+    return response.data;
+  }
+
+  // 🆕 待定成员相关方法
+  async batchAddPendingMembers(
+    projectId: string, 
+    members: Array<{ email: string; role: 'admin' | 'member' | 'observer' }>
+  ): Promise<{ added_count: number; skipped: string[] }> {
+    const response = await apiClient.post(`/projects/${projectId}/pending-members/batch`, { members });
+    return response.data;
+  }
+
+  async getPendingMembers(projectId: string): Promise<Array<{
+    id: string;
+    email: string;
+    role: 'admin' | 'member' | 'observer';
+    created_at: string;
+  }>> {
+    const response = await apiClient.get(`/projects/${projectId}/pending-members`);
+    return response.data.pending_members;
+  }
+
+  async deletePendingMember(projectId: string, memberId: string): Promise<void> {
+    await apiClient.delete(`/projects/${projectId}/pending-members/${memberId}`);
   }
 }
 

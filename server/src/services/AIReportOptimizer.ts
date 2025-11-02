@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { AIService } from './aiService';
 import { AISuggestion } from '../models/WeeklyReport';
 
@@ -96,11 +95,10 @@ ${metadata ? `\n统计数据：\n${JSON.stringify(metadata, null, 2)}` : ''}
 - priority: 根据重要性设置优先级
 - 建议要具体、可操作，不要泛泛而谈`;
 
-      const response = await AIService.generateText({ prompt, type: "generate", 
-        });
+      const response = await AIService.generateText({ prompt, type: "generate" as const });
 
       // 解析AI返回的JSON
-      const suggestions = this.parseAISuggestions(response);
+      const suggestions = this.parseAISuggestions(response.data.generated_text);
 
       console.log(`[AIReportOptimizer] Generated ${suggestions.length} suggestions`);
       return suggestions;
@@ -127,10 +125,9 @@ ${content}
 
 请直接输出摘要，不要添加任何前缀或后缀。`;
 
-      const summary = await AIService.generateText({ prompt, type: "generate", 
-        });
+      const response = await AIService.generateText({ prompt, type: "generate" as const });
 
-      return summary.trim();
+      return response.data.generated_text.trim();
     } catch (error) {
       console.error('[AIReportOptimizer] Error generating summary:', error);
       return '本周工作正常推进，完成了计划任务。';
@@ -154,18 +151,18 @@ ${content}
 请以JSON数组格式输出（直接输出数组，不要其他文字）：
 ["亮点1", "亮点2", "亮点3"]`;
 
-      const response = await AIService.generateText({ prompt, type: "generate", 
-        });
+      const response = await AIService.generateText({ prompt, type: "generate" as const });
 
       // 解析AI返回的JSON
+      const responseText = response.data.generated_text.trim();
       try {
-        const highlights = JSON.parse(response.trim());
+        const highlights = JSON.parse(responseText);
         if (Array.isArray(highlights)) {
           return highlights.filter((h) => typeof h === 'string' && h.length > 0);
         }
       } catch {
         // 如果无法解析JSON，尝试按行分割
-        return response
+        return responseText
           .split('\n')
           .filter((line) => line.trim().length > 0)
           .slice(0, 5);
@@ -205,18 +202,18 @@ ${metadata ? `\n统计数据：\n${JSON.stringify(metadata, null, 2)}` : ''}
 - 技术难题
 - 沟通协作问题`;
 
-      const response = await AIService.generateText({ prompt, type: "generate", 
-        });
+      const response = await AIService.generateText({ prompt, type: "generate" as const });
 
       // 解析AI返回的JSON
+      const responseText = response.data.generated_text.trim();
       try {
-        const risks = JSON.parse(response.trim());
+        const risks = JSON.parse(responseText);
         if (Array.isArray(risks)) {
           return risks.filter((r) => typeof r === 'string' && r.length > 0);
         }
       } catch {
         // 如果无法解析JSON，尝试按行分割
-        return response
+        return responseText
           .split('\n')
           .filter((line) => line.trim().length > 0)
           .slice(0, 4);
@@ -281,10 +278,9 @@ ${content.substring(0, 500)}...
 
 请直接输出新标题，不要添加任何说明。`;
 
-      const title = await AIService.generateText({ prompt, type: "generate", 
-        });
+      const response = await AIService.generateText({ prompt, type: "generate" as const });
 
-      return title.trim() || currentTitle || '周报';
+      return response.data.generated_text.trim() || currentTitle || '周报';
     } catch (error) {
       console.error('[AIReportOptimizer] Error improving title:', error);
       return currentTitle || '周报';

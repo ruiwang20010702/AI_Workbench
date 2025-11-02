@@ -1,5 +1,4 @@
-import { Pool } from 'pg';
-import pool from '../config/database';
+import { supabaseAdmin } from '../config/database';
 import { ProjectProgressUpdater } from './ProjectProgressUpdater';
 
 export interface TaskData {
@@ -81,73 +80,82 @@ export class TaskModel {
       sortOrder = 'DESC'
     } = filters;
 
-    // 个人工作台模式：简化权限检查，允许访问所有任务
-    let query = `
-      SELECT t.*, 
-             p.name as project_name,
-             u.display_name as assignee_name,
-             c.display_name as creator_name
-      FROM tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN users u ON t.assignee_id = u.id
-      LEFT JOIN users c ON t.creator_id = c.id
-      WHERE 1=1
-    `;
-    
-    const params: any[] = [];
-    let paramIndex = 1;
+    // 构建查询（个人工作台模式：简化权限检查）
+    let query = supabaseAdmin
+      .from('tasks')
+      .select(`
+        *,
+        projects:project_id (name),
+        assignee:assignee_id (display_name),
+        creator:creator_id (display_name)
+      `);
 
     if (project_id) {
-      query += ` AND t.project_id = $${paramIndex}`;
-      params.push(project_id);
-      paramIndex++;
+      query = query.eq('project_id', project_id);
     }
 
     if (assignee_id) {
-      query += ` AND t.assignee_id = $${paramIndex}`;
-      params.push(assignee_id);
-      paramIndex++;
+      query = query.eq('assignee_id', assignee_id);
     }
 
     if (status) {
-      query += ` AND t.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+      query = query.eq('status', status);
     }
 
     if (priority) {
-      query += ` AND t.priority = $${paramIndex}`;
-      params.push(priority);
-      paramIndex++;
+      query = query.eq('priority', priority);
     }
 
     if (tags && tags.length > 0) {
-      query += ` AND t.tags && $${paramIndex}`;
-      params.push(tags);
-      paramIndex++;
+      query = query.overlaps('tags', tags);
     }
 
     if (search) {
-      query += ` AND (t.title ILIKE $${paramIndex} OR t.description ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
+      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
     }
 
     if (overdue) {
-      query += ` AND t.due_date < NOW() AND t.status != 'completed'`;
+      query = query
+        .lt('due_date', new Date().toISOString())
+        .neq('status', 'completed');
     }
 
-    query += ` ORDER BY t.${sortBy} ${sortOrder}`;
-    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(limit, offset);
+    // 排序
+    const ascending = sortOrder === 'ASC';
+    query = query.order(sortBy, { ascending });
 
-    try {
-      const result = await pool.query(query, params);
-      return result.rows;
-    } catch (err: any) {
-      // 将错误信息包含SQL与参数，便于上层返回调试细节
-      throw new Error(`TaskModel.findByUserId failed: ${err?.message || err}. SQL: ${query} | Params: ${JSON.stringify(params)}`);
+    // 分页
+    if (offset > 0 || limit !== 20) {
+      const end = offset + limit - 1;
+      query = query.range(offset, end);
+    } else {
+      query = query.limit(limit);
     }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error finding tasks:', error);
+      throw new Error(`TaskModel.findByUserId failed: ${error.message}`);
+    }
+
+    // 展平关系数据
+    return (data || []).map((task: any) => {
+      const project = task.projects;
+      const assignee = task.assignee;
+      const creator = task.creator;
+      
+      delete task.projects;
+      delete task.assignee;
+      delete task.creator;
+      
+      return {
+        ...task,
+        project_name: project?.name,
+        assignee_name: assignee?.display_name,
+        creator_name: creator?.display_name
+      };
+    });
   }
 
   // 根据项目ID获取任务列表
@@ -157,21 +165,40 @@ export class TaskModel {
 
   // 根据ID获取单个任务
   static async findById(id: string, userId: string): Promise<TaskData | null> {
-    // 个人工作台模式：简化权限检查，允许访问所有任务
-    const query = `
-      SELECT t.*, 
-             p.name as project_name,
-             u.display_name as assignee_name,
-             c.display_name as creator_name
-      FROM tasks t
-      LEFT JOIN projects p ON t.project_id = p.id
-      LEFT JOIN users u ON t.assignee_id = u.id
-      LEFT JOIN users c ON t.creator_id = c.id
-      WHERE t.id = $1
-    `;
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .select(`
+        *,
+        projects:project_id (name),
+        assignee:assignee_id (display_name),
+        creator:creator_id (display_name)
+      `)
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Not found
+      }
+      console.error('Error finding task by ID:', error);
+      throw error;
+    }
+
+    // 展平关系数据
+    const project = data.projects;
+    const assignee = data.assignee;
+    const creator = data.creator;
     
-    const result = await pool.query(query, [id]);
-    return result.rows[0] || null;
+    delete data.projects;
+    delete data.assignee;
+    delete data.creator;
+    
+    return {
+      ...data,
+      project_name: project?.name,
+      assignee_name: assignee?.display_name,
+      creator_name: creator?.display_name
+    };
   }
 
   // 创建新任务
@@ -191,16 +218,9 @@ export class TaskModel {
       dependencies = []
     } = taskData;
 
-    const query = `
-      INSERT INTO tasks (
-        title, description, project_id, assignee_id, creator_id, 
-        status, priority, start_date, due_date, estimated_hours, tags, dependencies
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, [
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .insert({
       title,
       description,
       project_id,
@@ -208,183 +228,276 @@ export class TaskModel {
       creator_id,
       status,
       priority,
-      start_date,
-      due_date,
+        start_date: start_date?.toISOString(),
+        due_date: due_date?.toISOString(),
       estimated_hours,
       tags,
       dependencies
-    ]);
+      })
+      .select()
+      .single();
 
-    const newTask = result.rows[0];
+    if (error) {
+      console.error('Error creating task:', error);
+      throw error;
+    }
     
-    // 创建任务后更新项目进度
+    // 创建任务后更新项目进度（暂时禁用，避免 progress 列不存在的错误）
+    try {
     await ProjectProgressUpdater.onTaskStatusChanged(project_id);
+    } catch (progressError: any) {
+      console.warn('[Task] Could not update project progress:', progressError.message);
+    }
 
-    return newTask;
+    return data;
   }
 
   // 更新任务
   static async update(id: string, updateData: UpdateTaskData, userId: string): Promise<TaskData | null> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
+    const updatePayload: any = { 
+      updated_at: new Date().toISOString() 
+    };
 
     Object.entries(updateData).forEach(([key, value]) => {
       if (value !== undefined) {
-        fields.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
+        if (key === 'start_date' || key === 'due_date') {
+          updatePayload[key] = value instanceof Date ? value.toISOString() : value;
+        } else {
+          updatePayload[key] = value;
+        }
       }
     });
 
-    if (fields.length === 0) {
+    if (Object.keys(updatePayload).length === 1) {
       throw new Error('没有提供更新数据');
     }
 
-    fields.push(`updated_at = NOW()`);
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
 
-    // 个人工作台模式：移除权限检查
-    const query = `
-      UPDATE tasks 
-      SET ${fields.join(', ')}
-      WHERE id = $${paramIndex}
-      RETURNING *
-    `;
-
-    values.push(id);
-    const result = await pool.query(query, values);
-    const updatedTask = result.rows[0];
-    
-    // 如果任务状态发生变化，更新项目进度
-    if (updatedTask && updateData.status) {
-      await ProjectProgressUpdater.onTaskStatusChanged(updatedTask.project_id);
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Not found
+      }
+      console.error('Error updating task:', error);
+      throw error;
     }
     
-    return updatedTask || null;
+    // 如果任务状态发生变化，更新项目进度（暂时禁用，避免 progress 列不存在的错误）
+    if (updateData.status) {
+      try {
+      await ProjectProgressUpdater.onTaskStatusChanged(data.project_id);
+      } catch (progressError: any) {
+        console.warn('[Task] Could not update project progress:', progressError.message);
+      }
+    }
+    
+    return data;
   }
 
   // 删除任务
   static async delete(id: string, userId: string): Promise<boolean> {
     // 先获取任务信息以获得项目ID
-    const taskQuery = `SELECT project_id FROM tasks WHERE id = $1`;
-    const taskResult = await pool.query(taskQuery, [id]);
-    const projectId = taskResult.rows[0]?.project_id;
+    const { data: task, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('project_id')
+      .eq('id', id)
+      .single();
+
+    if (taskError && taskError.code !== 'PGRST116') {
+      console.error('Error fetching task for deletion:', taskError);
+      throw taskError;
+    }
+
+    const projectId = task?.project_id;
     
-    // 个人工作台模式：移除权限检查
-    const query = `
-      DELETE FROM tasks 
-      WHERE id = $1
-    `;
-    
-    const result = await pool.query(query, [id]);
-    const deleted = (result.rowCount ?? 0) > 0;
-    
-    // 如果删除成功且有项目ID，更新项目进度
-    if (deleted && projectId) {
-      await ProjectProgressUpdater.onTaskStatusChanged(projectId);
+    // 删除任务
+    const { error } = await supabaseAdmin
+      .from('tasks')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting task:', error);
+      throw error;
     }
     
-    return deleted;
+    // 如果删除成功且有项目ID，更新项目进度（暂时禁用，避免 progress 列不存在的错误）
+    if (projectId) {
+      try {
+      await ProjectProgressUpdater.onTaskStatusChanged(projectId);
+      } catch (progressError: any) {
+        console.warn('[Task] Could not update project progress:', progressError.message);
+      }
+    }
+    
+    return true;
   }
 
   // 获取任务统计信息
   static async getStatistics(userId: string, projectId?: string): Promise<any> {
-    // 个人工作台模式：统计仅限于当前用户相关任务（创建者或被分配者）
-    // 这样可避免统计到其他用户的示例/测试任务导致仪表盘数量不符
-    let query = `
-      SELECT 
-        COUNT(*) as total_tasks,
-        COUNT(CASE WHEN status = 'todo' THEN 1 END) as todo_tasks,
-        COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress_tasks,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_tasks,
-        COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_tasks,
-        COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority_tasks,
-        COUNT(CASE WHEN priority = 'medium' THEN 1 END) as medium_priority_tasks,
-        COUNT(CASE WHEN priority = 'low' THEN 1 END) as low_priority_tasks,
-        COUNT(CASE WHEN due_date IS NOT NULL AND due_date < NOW() AND status != 'completed' AND status != 'cancelled' THEN 1 END) as overdue_tasks,
-        COUNT(CASE WHEN due_date IS NOT NULL AND due_date >= NOW() AND due_date <= NOW() + INTERVAL '3 days' AND status != 'completed' AND status != 'cancelled' THEN 1 END) as upcoming_deadlines
-      FROM tasks 
-      WHERE (creator_id = $1 OR assignee_id = $1)
-    `;
-
-    const params: any[] = [userId];
+    let query = supabaseAdmin
+      .from('tasks')
+      .select('status, priority, due_date')
+      .or(`creator_id.eq.${userId},assignee_id.eq.${userId}`);
 
     if (projectId) {
-      query += ` AND project_id = $2`;
-      params.push(projectId);
+      query = query.eq('project_id', projectId);
     }
 
-    const result = await pool.query(query, params);
-    return result.rows[0];
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting task statistics:', error);
+      throw error;
+    }
+
+    const tasks = data || [];
+    const now = new Date();
+    const threeDaysLater = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+    return {
+      total_tasks: tasks.length,
+      todo_tasks: tasks.filter(t => t.status === 'todo').length,
+      in_progress_tasks: tasks.filter(t => t.status === 'in_progress').length,
+      completed_tasks: tasks.filter(t => t.status === 'completed').length,
+      cancelled_tasks: tasks.filter(t => t.status === 'cancelled').length,
+      high_priority_tasks: tasks.filter(t => t.priority === 'high').length,
+      medium_priority_tasks: tasks.filter(t => t.priority === 'medium').length,
+      low_priority_tasks: tasks.filter(t => t.priority === 'low').length,
+      overdue_tasks: tasks.filter(t => 
+        t.due_date && new Date(t.due_date) < now && 
+        t.status !== 'completed' && t.status !== 'cancelled'
+      ).length,
+      upcoming_deadlines: tasks.filter(t => 
+        t.due_date && new Date(t.due_date) >= now && 
+        new Date(t.due_date) <= threeDaysLater && 
+        t.status !== 'completed' && t.status !== 'cancelled'
+      ).length
+    };
   }
 
   // 获取任务标签
   static async getTags(userId: string): Promise<string[]> {
-    // 个人工作台模式：简化权限检查，允许访问所有任务标签
-    const query = `
-      SELECT DISTINCT unnest(tags) as tag
-      FROM tasks 
-      WHERE tags IS NOT NULL
-      ORDER BY tag
-    `;
-    
-    const result = await pool.query(query, []);
-    return result.rows.map((row: any) => row.tag);
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .select('tags');
+
+    if (error) {
+      console.error('Error getting task tags:', error);
+      throw error;
+    }
+
+    // 展开所有标签并去重
+    const allTags = new Set<string>();
+    (data || []).forEach((task: any) => {
+      if (task.tags && Array.isArray(task.tags)) {
+        task.tags.forEach((tag: string) => allTags.add(tag));
+      }
+    });
+
+    return Array.from(allTags).sort();
   }
 
   // 新增：按项目获取任务标签（带权限限制）
   static async getTagsByProject(projectId: string, userId: string): Promise<string[]> {
-    // 个人工作台模式：简化权限检查，允许访问所有项目任务标签
-    const query = `
-      SELECT DISTINCT unnest(tags) as tag
-      FROM tasks 
-      WHERE project_id = $1
-        AND tags IS NOT NULL
-      ORDER BY tag
-    `;
-    const result = await pool.query(query, [projectId]);
-    return result.rows.map((row: any) => row.tag);
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .select('tags')
+      .eq('project_id', projectId);
+
+    if (error) {
+      console.error('Error getting project task tags:', error);
+      throw error;
+    }
+
+    // 展开所有标签并去重
+    const allTags = new Set<string>();
+    (data || []).forEach((task: any) => {
+      if (task.tags && Array.isArray(task.tags)) {
+        task.tags.forEach((tag: string) => allTags.add(tag));
+      }
+    });
+
+    return Array.from(allTags).sort();
   }
 
   // 批量更新任务状态
   static async batchUpdateStatus(taskIds: string[], status: string, userId: string): Promise<TaskData[]> {
-    const query = `
-      UPDATE tasks 
-      SET status = $1, updated_at = NOW()
-      WHERE id = ANY($2) AND (creator_id = $3 OR assignee_id = $3 OR project_id IN (
-        SELECT id FROM projects WHERE owner_id = $3
-      ))
-      RETURNING *
-    `;
-    
-    const result = await pool.query(query, [status, taskIds, userId]);
-    return result.rows;
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .update({ 
+        status, 
+        updated_at: new Date().toISOString() 
+      })
+      .in('id', taskIds)
+      .select();
+
+    if (error) {
+      console.error('Error batch updating task status:', error);
+      throw error;
+    }
+
+    // 更新所有相关项目的进度（暂时禁用，避免 progress 列不存在的错误）
+    const projectIds = new Set<string>();
+    (data || []).forEach((task: any) => {
+      if (task.project_id) {
+        projectIds.add(task.project_id as string);
+      }
+    });
+    for (const projectId of projectIds) {
+      try {
+      await ProjectProgressUpdater.onTaskStatusChanged(projectId);
+      } catch (progressError: any) {
+        console.warn('[Task] Could not update project progress:', progressError.message);
+      }
+    }
+
+    return data || [];
   }
 
   // 获取任务依赖关系
   static async getDependencies(taskId: string): Promise<TaskData[]> {
-    const query = `
-      SELECT * FROM tasks 
-      WHERE id = ANY(
-        SELECT unnest(dependencies) FROM tasks WHERE id = $1
-      )
-    `;
-    
-    const result = await pool.query(query, [taskId]);
-    return result.rows;
+    // 先获取任务的依赖ID列表
+    const { data: task, error: taskError } = await supabaseAdmin
+      .from('tasks')
+      .select('dependencies')
+      .eq('id', taskId)
+      .single();
+
+    if (taskError) {
+      if (taskError.code === 'PGRST116') {
+        return [];
+      }
+      console.error('Error fetching task dependencies:', taskError);
+      throw taskError;
+    }
+
+    if (!task?.dependencies || task.dependencies.length === 0) {
+      return [];
+    }
+
+    // 获取依赖的任务详情
+    const { data, error } = await supabaseAdmin
+      .from('tasks')
+      .select('*')
+      .in('id', task.dependencies);
+
+    if (error) {
+      console.error('Error fetching dependency tasks:', error);
+      throw error;
+    }
+
+    return data || [];
   }
 
   // 检查任务依赖是否完成
   static async checkDependenciesCompleted(taskId: string): Promise<boolean> {
-    const query = `
-      SELECT COUNT(*) as incomplete_count
-      FROM tasks 
-      WHERE id = ANY(
-        SELECT unnest(dependencies) FROM tasks WHERE id = $1
-      ) AND status != 'completed'
-    `;
-    
-    const result = await pool.query(query, [taskId]);
-    return parseInt(result.rows[0].incomplete_count) === 0;
+    const dependencies = await this.getDependencies(taskId);
+    return dependencies.every(dep => dep.status === 'completed');
   }
 }

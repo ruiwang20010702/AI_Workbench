@@ -1,4 +1,4 @@
-import pool from '../config/database';
+import { supabaseAdmin } from '../config/database';
 import { AIUsageLog } from '../types';
 
 export class AIUsageLogModel {
@@ -10,22 +10,25 @@ export class AIUsageLogModel {
     output_tokens: number;
     cost_cents: number;
   }): Promise<AIUsageLog> {
-    const query = `
-      INSERT INTO ai_usage_logs (user_id, action_type, model_name, input_tokens, output_tokens, cost_cents)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `;
-    const values = [
-      logData.user_id,
-      logData.action_type,
-      logData.model_name,
-      logData.input_tokens,
-      logData.output_tokens,
-      logData.cost_cents
-    ];
+    const { data, error } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .insert({
+        user_id: logData.user_id,
+        action_type: logData.action_type,
+        model_name: logData.model_name,
+        input_tokens: logData.input_tokens,
+        output_tokens: logData.output_tokens,
+        cost_cents: logData.cost_cents
+      })
+      .select()
+      .single();
 
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    if (error) {
+      console.error('Error creating AI usage log:', error);
+      throw error;
+    }
+
+    return data;
   }
 
   static async findByUserId(
@@ -36,40 +39,50 @@ export class AIUsageLogModel {
       offset?: number;
     } = {}
   ): Promise<AIUsageLog[]> {
-    let query = 'SELECT * FROM ai_usage_logs WHERE user_id = $1';
-    const values: any[] = [userId];
-    let paramCount = 2;
+    let query = supabaseAdmin
+      .from('ai_usage_logs')
+      .select('*')
+      .eq('user_id', userId);
 
     if (options.action_type) {
-      query += ` AND action_type = $${paramCount++}`;
-      values.push(options.action_type);
+      query = query.eq('action_type', options.action_type);
     }
 
-    query += ' ORDER BY created_at DESC';
+    query = query.order('created_at', { ascending: false });
 
     if (options.limit) {
-      query += ` LIMIT $${paramCount++}`;
-      values.push(options.limit);
+      query = query.limit(options.limit);
     }
 
     if (options.offset) {
-      query += ` OFFSET $${paramCount++}`;
-      values.push(options.offset);
+      const end = options.offset + (options.limit || 20) - 1;
+      query = query.range(options.offset, end);
     }
 
-    const result = await pool.query(query, values);
-    return result.rows;
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error finding AI usage logs:', error);
+      throw error;
+    }
+
+    return data || [];
   }
 
   static async getRecentByUserId(userId: string, limit: number = 10): Promise<AIUsageLog[]> {
-    const query = `
-      SELECT * FROM ai_usage_logs 
-      WHERE user_id = $1 
-      ORDER BY created_at DESC 
-      LIMIT $2
-    `;
-    const result = await pool.query(query, [userId, limit]);
-    return result.rows;
+    const { data, error } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error getting recent AI usage logs:', error);
+      throw error;
+    }
+
+    return data || [];
   }
 
   static async getUsageStats(userId: string): Promise<{
@@ -78,24 +91,23 @@ export class AIUsageLogModel {
     total_output_tokens: number;
     total_cost_cents: number;
   }> {
-    const query = `
-      SELECT 
-        COUNT(*) as total_requests,
-        COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-        COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-        COALESCE(SUM(cost_cents), 0) as total_cost_cents
-      FROM ai_usage_logs 
-      WHERE user_id = $1
-    `;
-    
-    const result = await pool.query(query, [userId]);
-    const row = result.rows[0];
+    const { data, error } = await supabaseAdmin
+      .from('ai_usage_logs')
+      .select('input_tokens, output_tokens, cost_cents')
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error getting AI usage stats:', error);
+      throw error;
+    }
+
+    const logs = data || [];
     
     return {
-      total_requests: parseInt(row.total_requests),
-      total_input_tokens: parseInt(row.total_input_tokens),
-      total_output_tokens: parseInt(row.total_output_tokens),
-      total_cost_cents: parseInt(row.total_cost_cents)
+      total_requests: logs.length,
+      total_input_tokens: logs.reduce((sum, log) => sum + (log.input_tokens || 0), 0),
+      total_output_tokens: logs.reduce((sum, log) => sum + (log.output_tokens || 0), 0),
+      total_cost_cents: logs.reduce((sum, log) => sum + (log.cost_cents || 0), 0)
     };
   }
 
@@ -109,38 +121,33 @@ export class AIUsageLogModel {
     total_output_tokens: number;
     total_cost_cents: number;
   }> {
-    let query = `
-      SELECT 
-        COUNT(*) as total_requests,
-        COALESCE(SUM(input_tokens), 0) as total_input_tokens,
-        COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-        COALESCE(SUM(cost_cents), 0) as total_cost_cents
-      FROM ai_usage_logs 
-      WHERE user_id = $1
-    `;
-    const params: any[] = [userId];
-    let paramIndex = 2;
+    let query = supabaseAdmin
+      .from('ai_usage_logs')
+      .select('input_tokens, output_tokens, cost_cents')
+      .eq('user_id', userId);
 
     if (startDate) {
-      query += ` AND created_at >= $${paramIndex}`;
-      params.push(startDate);
-      paramIndex++;
+      query = query.gte('created_at', startDate.toISOString());
     }
 
     if (endDate) {
-      query += ` AND created_at <= $${paramIndex}`;
-      params.push(endDate);
-      paramIndex++;
+      query = query.lte('created_at', endDate.toISOString());
     }
 
-    const result = await pool.query(query, params);
-    const row = result.rows[0];
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error getting AI usage stats by date range:', error);
+      throw error;
+    }
+
+    const logs = data || [];
     
     return {
-      total_requests: parseInt(row.total_requests),
-      total_input_tokens: parseInt(row.total_input_tokens),
-      total_output_tokens: parseInt(row.total_output_tokens),
-      total_cost_cents: parseInt(row.total_cost_cents)
+      total_requests: logs.length,
+      total_input_tokens: logs.reduce((sum, log) => sum + (log.input_tokens || 0), 0),
+      total_output_tokens: logs.reduce((sum, log) => sum + (log.output_tokens || 0), 0),
+      total_cost_cents: logs.reduce((sum, log) => sum + (log.cost_cents || 0), 0)
     };
   }
 }

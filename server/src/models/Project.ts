@@ -1,5 +1,4 @@
-import { Pool } from 'pg';
-import pool from '../config/database';
+import { supabaseAdmin } from '../config/database';
 
 export interface ProjectData {
   id: string;
@@ -65,95 +64,144 @@ export class ProjectModel {
       offset = 0
     } = filters;
 
-    let query = `
-      SELECT p.*, 
-             COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count,
-             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed,
-             COALESCE(
-               CASE 
-                 WHEN COUNT(t.id) = 0 THEN 0
-                 ELSE ROUND(
-                   (COUNT(CASE WHEN t.status = 'completed' THEN 1 END) * 100.0 / COUNT(t.id))::numeric, 2
-                 )
-               END, 0
-             ) as progress
-      FROM projects p
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      LEFT JOIN tasks t ON p.id = t.project_id
-      WHERE (p.owner_id = $1 OR p.id IN (
-        SELECT project_id FROM project_members WHERE user_id = $1
-      ))
-    `;
-    
-    const params: any[] = [userId];
-    let paramIndex = 2;
+    // 使用 Supabase 查询构建器获取项目和关联数据
+    let query = supabaseAdmin
+      .from('projects')
+      .select(`
+        *,
+        project_members(user_id),
+        pending_members(id),
+        tasks(id, status)
+      `);
 
+    // 用户权限过滤：项目拥有者 或 项目成员
+    // 注意：Supabase 不支持直接的 OR 子查询，需要分两次查询然后合并
+    // 这里使用 RPC 或者分步查询
+    
+    // 方案：获取所有项目，然后在代码中过滤
+    const { data: allProjects, error } = await query;
+    
+    if (error) {
+      console.error('Error finding projects:', error);
+      throw error;
+    }
+
+    // 过滤用户有权限的项目
+    let projects = (allProjects || []).filter(p => 
+      p.owner_id === userId || 
+      (p.project_members && p.project_members.some((m: any) => m.user_id === userId))
+    );
+
+    // 应用筛选条件
     if (status) {
-      query += ` AND p.status = $${paramIndex}`;
-      params.push(status);
-      paramIndex++;
+      projects = projects.filter(p => p.status === status);
     }
 
     if (priority) {
-      query += ` AND p.priority = $${paramIndex}`;
-      params.push(priority);
-      paramIndex++;
+      projects = projects.filter(p => p.priority === priority);
     }
 
     if (parent_id !== undefined) {
       if (parent_id === null || parent_id === '') {
-        query += ` AND p.parent_id IS NULL`;
+        projects = projects.filter(p => !p.parent_id);
       } else {
-        query += ` AND p.parent_id = $${paramIndex}`;
-        params.push(parent_id);
-        paramIndex++;
+        projects = projects.filter(p => p.parent_id === parent_id);
       }
     }
 
     if (search) {
-      query += ` AND (p.name ILIKE $${paramIndex} OR p.description ILIKE $${paramIndex})`;
-      params.push(`%${search}%`);
-      paramIndex++;
+      const searchLower = search.toLowerCase();
+      projects = projects.filter(p => 
+        p.name?.toLowerCase().includes(searchLower) || 
+        p.description?.toLowerCase().includes(searchLower)
+      );
     }
 
-    query += `
-      GROUP BY p.id
-      ORDER BY p.updated_at DESC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-    params.push(limit, offset);
+    // 计算统计数据
+    const projectsWithStats = projects.map((p: any) => {
+      const taskCount = p.tasks?.length || 0;
+      const tasksCompleted = p.tasks?.filter((t: any) => t.status === 'completed').length || 0;
+      const progress = taskCount > 0 ? Math.round((tasksCompleted / taskCount) * 100) : 0;
+      
+      // 计算总成员数：正式成员 + 待定成员
+      const formalMemberCount = p.project_members?.length || 0;
+      const pendingMemberCount = p.pending_members?.length || 0;
+      const totalMemberCount = formalMemberCount + pendingMemberCount;
 
-    const result = await pool.query(query, params);
-    return result.rows;
+      return {
+        ...p,
+        member_count: totalMemberCount,
+        task_count: taskCount,
+        tasks_total: taskCount, // 兼容前端字段
+        tasks_completed: tasksCompleted,
+        progress,
+        // 清理嵌套数据
+        project_members: undefined,
+        pending_members: undefined,
+        tasks: undefined
+      };
+    });
+
+    // 排序
+    projectsWithStats.sort((a, b) => 
+      new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+    );
+
+    // 分页
+    const paginatedProjects = projectsWithStats.slice(offset, offset + limit);
+
+    return paginatedProjects;
   }
 
   // 根据ID获取单个项目
   static async findById(id: string, userId: string): Promise<ProjectData | null> {
-    const query = `
-      SELECT p.*, 
-             COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count,
-             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed,
-             COALESCE(
-               CASE 
-                 WHEN COUNT(t.id) = 0 THEN 0
-                 ELSE ROUND(
-                   (COUNT(CASE WHEN t.status = 'completed' THEN 1 END) * 100.0 / COUNT(t.id))::numeric, 2
-                 )
-               END, 0
-             ) as progress
-      FROM projects p
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      LEFT JOIN tasks t ON p.id = t.project_id
-      WHERE p.id = $1 AND (p.owner_id = $2 OR p.id IN (
-        SELECT project_id FROM project_members WHERE user_id = $2
-      ))
-      GROUP BY p.id
-    `;
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .select(`
+        *,
+        project_members(user_id),
+        pending_members(id),
+        tasks(id, status)
+      `)
+      .eq('id', id)
+      .single();
     
-    const result = await pool.query(query, [id, userId]);
-    return result.rows[0] || null;
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error finding project by id:', error);
+      throw error;
+    }
+
+    // 检查权限
+    const hasAccess = data.owner_id === userId || 
+      (data.project_members && data.project_members.some((m: any) => m.user_id === userId));
+
+    if (!hasAccess) {
+      return null;
+    }
+
+    // 计算统计数据
+    const taskCount = data.tasks?.length || 0;
+    const tasksCompleted = data.tasks?.filter((t: any) => t.status === 'completed').length || 0;
+    const progress = taskCount > 0 ? Math.round((tasksCompleted / taskCount) * 100) : 0;
+    
+    // 计算总成员数：正式成员 + 待定成员
+    const formalMemberCount = data.project_members?.length || 0;
+    const pendingMemberCount = data.pending_members?.length || 0;
+    const totalMemberCount = formalMemberCount + pendingMemberCount;
+
+    return {
+      ...data,
+      member_count: totalMemberCount,
+      task_count: taskCount,
+      tasks_total: taskCount, // 兼容前端字段
+      tasks_completed: tasksCompleted,
+      progress,
+      // 清理嵌套数据
+      project_members: undefined,
+      pending_members: undefined,
+      tasks: undefined
+    };
   }
 
   // 创建新项目
@@ -170,13 +218,9 @@ export class ProjectModel {
       tags = []
     } = projectData;
 
-    const query = `
-      INSERT INTO projects (name, description, parent_id, owner_id, status, priority, start_date, end_date, tags)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, [
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .insert({
       name,
       description,
       parent_id,
@@ -186,70 +230,89 @@ export class ProjectModel {
       start_date,
       end_date,
       tags
-    ]);
+      })
+      .select()
+      .single();
 
-    return result.rows[0];
+    if (error) {
+      console.error('Error creating project:', error);
+      throw error;
+    }
+
+    return data;
   }
 
   // 更新项目
   static async update(id: string, userId: string, updateData: UpdateProjectData): Promise<ProjectData | null> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramIndex = 1;
-
-    Object.entries(updateData).forEach(([key, value]) => {
-      if (value !== undefined) {
-        fields.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
-    });
-
-    if (fields.length === 0) {
+    if (Object.keys(updateData).length === 0) {
       throw new Error('没有提供更新数据');
     }
 
-    fields.push(`updated_at = NOW()`);
-
-    const query = `
-      UPDATE projects 
-      SET ${fields.join(', ')}
-      WHERE id = $${paramIndex} AND owner_id = $${paramIndex + 1}
-      RETURNING *
-    `;
-
-    values.push(id, userId);
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .update(updateData)
+      .eq('id', id)
+      .eq('owner_id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error updating project:', error);
+      throw error;
+    }
+    
+    return data;
   }
 
   // 删除项目
   static async delete(id: string, userId: string): Promise<boolean> {
-    const query = `
-      DELETE FROM projects 
-      WHERE id = $1 AND owner_id = $2
-    `;
+    const { error } = await supabaseAdmin
+      .from('projects')
+      .delete()
+      .eq('id', id)
+      .eq('owner_id', userId);
     
-    const result = await pool.query(query, [id, userId]);
-    return (result.rowCount ?? 0) > 0;
+    if (error) {
+      console.error('Error deleting project:', error);
+      throw error;
+    }
+    
+    return true;
   }
 
   // 获取项目统计信息
   static async getStatistics(userId: string): Promise<any> {
-    const query = `
-      SELECT 
-        COUNT(*) as total_projects,
-        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_projects,
-        COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_projects,
-        COUNT(CASE WHEN priority = 'high' THEN 1 END) as high_priority_projects
-      FROM projects 
-      WHERE owner_id = $1 OR id IN (
-        SELECT project_id FROM project_members WHERE user_id = $1
-      )
-    `;
+    // 获取用户参与的所有项目
+    const { data: projects, error } = await supabaseAdmin
+      .from('projects')
+      .select(`
+        id,
+        owner_id,
+        status,
+        priority,
+        project_members(user_id)
+      `);
     
-    const result = await pool.query(query, [userId]);
-    return result.rows[0];
+    if (error) {
+      console.error('Error getting project statistics:', error);
+      throw error;
+    }
+
+    // 过滤用户有权限的项目
+    const userProjects = (projects || []).filter(p => 
+      p.owner_id === userId || 
+      (p.project_members && p.project_members.some((m: any) => m.user_id === userId))
+    );
+    
+    const stats = {
+      total_projects: userProjects.length,
+      active_projects: userProjects.filter(p => p.status === 'active').length,
+      completed_projects: userProjects.filter(p => p.status === 'completed').length,
+      high_priority_projects: userProjects.filter(p => p.priority === 'high').length
+    };
+
+    return stats;
   }
 
   // 获取项目统计信息（别名方法）
@@ -259,43 +322,71 @@ export class ProjectModel {
 
   // 获取子项目
   static async getSubProjects(parentId: string, userId: string): Promise<ProjectData[]> {
-    const query = `
-      SELECT p.*, 
-             COUNT(pm.user_id) as member_count,
-             COUNT(t.id) as task_count,
-             COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as tasks_completed
-      FROM projects p
-      LEFT JOIN project_members pm ON p.id = pm.project_id
-      LEFT JOIN tasks t ON p.id = t.project_id
-      WHERE p.parent_id = $1 AND (p.owner_id = $2 OR p.id IN (
-        SELECT project_id FROM project_members WHERE user_id = $2
-      ))
-      GROUP BY p.id
-      ORDER BY p.created_at DESC
-    `;
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .select(`
+        *,
+        project_members(user_id),
+        pending_members(id),
+        tasks(id, status)
+      `)
+      .eq('parent_id', parentId)
+      .order('created_at', { ascending: false });
     
-    const result = await pool.query(query, [parentId, userId]);
-    return result.rows;
+    if (error) {
+      console.error('Error getting sub projects:', error);
+      throw error;
+    }
+
+    // 过滤用户有权限的项目
+    const userProjects = (data || []).filter(p => 
+      p.owner_id === userId || 
+      (p.project_members && p.project_members.some((m: any) => m.user_id === userId))
+    );
+
+    // 计算统计数据
+    return userProjects.map((p: any) => {
+      const taskCount = p.tasks?.length || 0;
+      const tasksCompleted = p.tasks?.filter((t: any) => t.status === 'completed').length || 0;
+      
+      // 计算总成员数：正式成员 + 待定成员
+      const formalMemberCount = p.project_members?.length || 0;
+      const pendingMemberCount = p.pending_members?.length || 0;
+      const totalMemberCount = formalMemberCount + pendingMemberCount;
+
+      return {
+        ...p,
+        member_count: totalMemberCount,
+        task_count: taskCount,
+        tasks_completed: tasksCompleted,
+        // 清理嵌套数据
+        project_members: undefined,
+        pending_members: undefined,
+        tasks: undefined
+      };
+    });
   }
 
   // 获取项目层级路径
   static async getProjectPath(projectId: string): Promise<ProjectData[]> {
-    const query = `
-      WITH RECURSIVE project_path AS (
-        SELECT id, name, parent_id, 0 as level
-        FROM projects 
-        WHERE id = $1
-        
-        UNION ALL
-        
-        SELECT p.id, p.name, p.parent_id, pp.level + 1
-        FROM projects p
-        INNER JOIN project_path pp ON p.id = pp.parent_id
-      )
-      SELECT * FROM project_path ORDER BY level DESC
-    `;
-    
-    const result = await pool.query(query, [projectId]);
-    return result.rows;
+    // 使用递归查询获取项目路径
+    // 由于 Supabase 不直接支持递归 CTE，这里使用循环实现
+    const path: ProjectData[] = [];
+    let currentId: string | null = projectId;
+
+    while (currentId) {
+      const { data, error } = await supabaseAdmin
+        .from('projects')
+        .select('id, name, parent_id')
+        .eq('id', currentId)
+        .single();
+      
+      if (error || !data) break;
+      
+      path.unshift(data as any);
+      currentId = data.parent_id || null;
+    }
+
+    return path;
   }
 }

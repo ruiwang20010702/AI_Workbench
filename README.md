@@ -160,9 +160,9 @@
    ```
 
 4. **访问应用**
-   - 前端: http://localhost:3000
-   - 后端 API: http://localhost:8000
-   - API 文档: http://localhost:8000/api-docs
+   - 前端: http://localhost:5173
+   - 后端 API: http://localhost:5000
+   - API 文档: http://localhost:5000/api-docs
 
 ### 生产环境部署
 
@@ -188,7 +188,7 @@ Railway 提供一键部署和自动数据库配置：
 
 4. **部署后端**
    - Railway 会自动检测 Node.js 应用
-   - 设置端口: `8000`
+   - 设置端口: `5000`
    - 配置环境变量
 
 详细指南请参考: [Railway 部署指南](./docs/RAILWAY_DEPLOYMENT.md)
@@ -276,14 +276,15 @@ AI_Workbench/
 
 ```javascript
 // 前端 API 配置
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+const API_BASE_URL = process.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // 后端服务配置
 const config = {
-  port: process.env.PORT || 8000,
-  database: process.env.DATABASE_URL,
+  port: process.env.PORT || 5000,
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
   jwtSecret: process.env.JWT_SECRET,
-  openaiApiKey: process.env.OPENAI_API_KEY
+  siliconflowApiKey: process.env.SILICONFLOW_API_KEY
 };
 ```
 

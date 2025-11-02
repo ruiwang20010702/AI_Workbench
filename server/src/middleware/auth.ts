@@ -10,7 +10,12 @@ export const authenticateToken: RequestHandler = async (
   try {
     // 个人工作台模式：跳过认证，使用默认用户
     const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    // 支持从 header 或 query 参数中获取 token (用于预览/下载)
+    let token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    
+    if (!token && req.query.token) {
+      token = req.query.token as string;
+    }
 
     if (token) {
       // 如果提供了token，尝试验证

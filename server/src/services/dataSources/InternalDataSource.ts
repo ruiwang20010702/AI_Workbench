@@ -1,8 +1,8 @@
-// @ts-nocheck
 import { IDataSource, WeeklyData, DataSourceConfig } from './IDataSource';
 import { TaskModel } from '../../models/Task';
 import { ProjectModel } from '../../models/Project';
 import { NoteModel } from '../../models/Note';
+import { DateUtils } from '../../utils/dateUtils';
 
 /**
  * 内部数据源实现
@@ -83,15 +83,15 @@ export class InternalDataSource implements IDataSource {
       });
 
       // 筛选本周任务
-      const weekTasks = allTasks.tasks.filter((task) => {
+      const weekTasks = allTasks.filter((task: any) => {
         const taskDate = task.completed_at || task.updated_at || task.created_at;
         return taskDate >= startDate && taskDate <= endDate;
       });
 
       // 分类任务
       const completed = weekTasks
-        .filter((task) => task.status === 'completed')
-        .map((task) => ({
+        .filter((task: any) => task.status === 'completed')
+        .map((task: any) => ({
           id: task.id,
           title: task.title,
           description: task.description || undefined,
@@ -101,9 +101,9 @@ export class InternalDataSource implements IDataSource {
           tags: task.tags || [],
         }));
 
-      const inProgress = allTasks.tasks
-        .filter((task) => task.status === 'in_progress')
-        .map((task) => ({
+      const inProgress = allTasks
+        .filter((task: any) => task.status === 'in_progress')
+        .map((task: any) => ({
           id: task.id,
           title: task.title,
           description: task.description || undefined,
@@ -117,13 +117,13 @@ export class InternalDataSource implements IDataSource {
       // 获取下周计划（即将到期的待办任务）
       const nextWeekStart = this.addDays(endDate, 1);
       const nextWeekEnd = this.addDays(endDate, 7);
-      const upcoming = allTasks.tasks
-        .filter((task) => {
+      const upcoming = allTasks
+        .filter((task: any) => {
           if (task.status === 'completed' || task.status === 'cancelled') return false;
           if (!task.due_date) return false;
           return task.due_date >= nextWeekStart && task.due_date <= nextWeekEnd;
         })
-        .map((task) => ({
+        .map((task: any) => ({
           id: task.id,
           title: task.title,
           description: task.description || undefined,
@@ -194,7 +194,7 @@ export class InternalDataSource implements IDataSource {
           id: project.id,
           name: project.name,
           description: project.description || undefined,
-          completed_at: project.updated_at,
+          completed_at: typeof project.updated_at === 'string' ? project.updated_at : project.updated_at.toISOString(),
         }));
 
       return {
@@ -223,26 +223,31 @@ export class InternalDataSource implements IDataSource {
       });
 
       const created = allNotes
-        .filter((note) => note.created_at >= startDate && note.created_at <= endDate)
+        .filter((note) => {
+          const createdAt = typeof note.created_at === 'string' ? note.created_at : note.created_at.toISOString();
+          return createdAt >= startDate && createdAt <= endDate;
+        })
         .map((note) => ({
           id: note.id,
           title: note.title,
           tags: note.tags || [],
-          created_at: note.created_at.toISOString(),
+          created_at: typeof note.created_at === 'string' ? note.created_at : note.created_at.toISOString(),
         }));
 
       // 本周更新的笔记（排除本周创建的）
       const updated = allNotes
         .filter((note) => {
-          const isCreatedThisWeek = note.created_at >= startDate && note.created_at <= endDate;
-          const isUpdatedThisWeek = note.updated_at >= startDate && note.updated_at <= endDate;
+          const createdAt = typeof note.created_at === 'string' ? note.created_at : note.created_at.toISOString();
+          const updatedAt = typeof note.updated_at === 'string' ? note.updated_at : note.updated_at.toISOString();
+          const isCreatedThisWeek = createdAt >= startDate && createdAt <= endDate;
+          const isUpdatedThisWeek = updatedAt >= startDate && updatedAt <= endDate;
           return !isCreatedThisWeek && isUpdatedThisWeek;
         })
         .map((note) => ({
           id: note.id,
           title: note.title,
           tags: note.tags || [],
-          updated_at: note.updated_at.toISOString(),
+          updated_at: typeof note.updated_at === 'string' ? note.updated_at : note.updated_at.toISOString(),
         }));
 
       return {
@@ -270,7 +275,7 @@ export class InternalDataSource implements IDataSource {
         limit: 1000,
       });
 
-      const weekTasks = allTasks.tasks.filter((task) => {
+      const weekTasks = allTasks.filter((task: any) => {
         const taskDate = task.completed_at || task.updated_at || task.created_at;
         return taskDate >= startDate && taskDate <= endDate;
       });
@@ -283,7 +288,7 @@ export class InternalDataSource implements IDataSource {
 
       // 按项目统计工时
       const byProject: Record<string, number> = {};
-      weekTasks.forEach((task) => {
+      weekTasks.forEach((task: any) => {
         const projectName = task.project_name || '未分类';
         const hours = task.actual_hours || task.estimated_hours || 0;
         byProject[projectName] = (byProject[projectName] || 0) + hours;
@@ -348,12 +353,10 @@ export class InternalDataSource implements IDataSource {
   }
 
   /**
-   * 日期加减天数
+   * 日期加减天数（使用DateUtils工具类）
    */
   private addDays(dateStr: string, days: number): string {
-    const date = new Date(dateStr);
-    date.setDate(date.getDate() + days);
-    return date.toISOString().split('T')[0];
+    return DateUtils.addDays(dateStr, days);
   }
 
   /**

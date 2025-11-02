@@ -1,5 +1,6 @@
 import express from 'express';
 import { authenticateToken } from '../middleware/auth';
+import { weeklyReportLimiter, aiLimiter, exportLimiter } from '../middleware/rateLimit';
 import {
   generateWeeklyReport,
   getWeeklyReports,
@@ -30,8 +31,8 @@ router.use(authenticateToken);
 
 // ==================== 周报路由 ====================
 
-// 生成周报
-router.post('/weekly/generate', generateWeeklyReport);
+// 生成周报（应用限流）
+router.post('/weekly/generate', weeklyReportLimiter, generateWeeklyReport);
 
 // 获取周报统计
 router.get('/weekly/stats', getWeeklyReportStats);
@@ -51,14 +52,14 @@ router.delete('/weekly/:id', deleteWeeklyReport);
 // 发布周报
 router.post('/weekly/:id/publish', publishWeeklyReport);
 
-// 导出周报
-router.get('/weekly/:id/export', exportWeeklyReport);
+// 导出周报（应用限流）
+router.get('/weekly/:id/export', exportLimiter, exportWeeklyReport);
 
-// AI优化周报
-router.post('/weekly/:id/optimize', optimizeWeeklyReport);
+// AI优化周报（应用限流）
+router.post('/weekly/:id/optimize', aiLimiter, optimizeWeeklyReport);
 
-// 获取AI建议
-router.post('/weekly/:id/suggestions', getSuggestions);
+// 获取AI建议（应用限流）
+router.post('/weekly/:id/suggestions', aiLimiter, getSuggestions);
 
 // ==================== 模板路由 ====================
 

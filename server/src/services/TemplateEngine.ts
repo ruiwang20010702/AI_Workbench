@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Mustache from 'mustache';
 import { marked } from 'marked';
 

@@ -350,7 +350,50 @@ export class ReportTemplateModel {
    * @returns 公共模板列表
    */
   static async getPublicTemplates(filters: TemplateFilters = {}): Promise<ReportTemplate[]> {
-    return this.findByUserId('', { ...filters, is_public: true });
+    try {
+      let query = supabase
+        .from('report_templates')
+        .select('*')
+        .eq('is_public', true)
+        .order('created_at', { ascending: false });
+
+      // 应用过滤器
+      if (filters.is_default !== undefined) {
+        query = query.eq('is_default', filters.is_default);
+      }
+
+      if (filters.format) {
+        query = query.eq('format', filters.format);
+      }
+
+      if (filters.search) {
+        query = query.or(`name.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
+      }
+
+      if (filters.tags && filters.tags.length > 0) {
+        query = query.contains('tags', filters.tags);
+      }
+
+      if (filters.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      if (filters.offset) {
+        query = query.range(filters.offset, filters.offset + (filters.limit || 10) - 1);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error fetching public templates:', error);
+        throw new Error(`Failed to fetch public templates: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      console.error('Error in getPublicTemplates:', error);
+      throw error;
+    }
   }
 }
 

@@ -1,0 +1,519 @@
+{
+  "config": {
+    "configFile": "/Users/ruiwang/Desktop/AI_Workbench/playwright.config.ts",
+    "rootDir": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 4
+    },
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/Users/ruiwang/Desktop/AI_Workbench/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 4
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.56.1",
+    "workers": 4,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "projects.spec.ts",
+      "file": "projects.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "项目管理功能",
+          "file": "projects.spec.ts",
+          "line": 34,
+          "column": 6,
+          "specs": [
+            {
+              "title": "应该成功显示项目页面",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9400,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:13.150Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-9ee7de507fdbcf536567",
+              "file": "projects.spec.ts",
+              "line": 46,
+              "column": 7
+            },
+            {
+              "title": "应该成功创建新项目",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 10384,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:13.146Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-3526e794dfe4e6b3196c",
+              "file": "projects.spec.ts",
+              "line": 55,
+              "column": 7
+            },
+            {
+              "title": "应该成功查看项目详情",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 2,
+                      "status": "failed",
+                      "duration": 25874,
+                      "error": {
+                        "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"",
+                        "stack": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:122:5",
+                        "location": {
+                          "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                          "column": 10,
+                          "line": 82
+                        },
+                        "snippet": "   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                            "column": 10,
+                            "line": 82
+                          },
+                          "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n\n   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:122:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:13.143Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功查看项目详情-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功查看项目详情-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功查看项目详情-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功查看项目详情-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                        "column": 10,
+                        "line": 82
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-c4851eae8c792432de20",
+              "file": "projects.spec.ts",
+              "line": 118,
+              "column": 7
+            },
+            {
+              "title": "应该成功编辑项目",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 3,
+                      "status": "failed",
+                      "duration": 24946,
+                      "error": {
+                        "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"",
+                        "stack": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:151:5",
+                        "location": {
+                          "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                          "column": 10,
+                          "line": 82
+                        },
+                        "snippet": "   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                            "column": 10,
+                            "line": 82
+                          },
+                          "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n\n   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:151:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:13.146Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功编辑项目-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功编辑项目-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功编辑项目-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功编辑项目-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                        "column": 10,
+                        "line": 82
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-029b65d07819038f970d",
+              "file": "projects.spec.ts",
+              "line": 146,
+              "column": 7
+            },
+            {
+              "title": "应该成功删除项目",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 24675,
+                      "error": {
+                        "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"",
+                        "stack": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:180:5",
+                        "location": {
+                          "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                          "column": 10,
+                          "line": 82
+                        },
+                        "snippet": "   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                            "column": 10,
+                            "line": 82
+                          },
+                          "message": "TimeoutError: page.waitForResponse: Timeout 15000ms exceeded while waiting for event \"response\"\n\n   at helpers/projects.ts:82\n\n  80 |   await Promise.all([\n  81 |     // 等待API响应（可能是POST创建或PUT更新）\n> 82 |     page.waitForResponse(\n     |          ^\n  83 |       response => {\n  84 |         const url = response.url();\n  85 |         const method = response.request().method();\n    at createTestProject (/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts:82:10)\n    at /Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts:180:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:22.818Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功删除项目-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "video",
+                          "contentType": "video/webm",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功删除项目-chromium/video.webm"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功删除项目-chromium/error-context.md"
+                        },
+                        {
+                          "name": "trace",
+                          "contentType": "application/zip",
+                          "path": "/Users/ruiwang/Desktop/AI_Workbench/test-results/projects-项目管理功能-应该成功删除项目-chromium/trace.zip"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/helpers/projects.ts",
+                        "column": 10,
+                        "line": 82
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-0c3f1b15414fee575d33",
+              "file": "projects.spec.ts",
+              "line": 176,
+              "column": 7
+            },
+            {
+              "title": "应该能够切换视图模式",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 10987,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:23.793Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-16ca17045f5396814b1c",
+              "file": "projects.spec.ts",
+              "line": 195,
+              "column": 7
+            },
+            {
+              "title": "应该能够使用搜索功能",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 7572,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:34.787Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-53e893ddcbc367fe8887",
+              "file": "projects.spec.ts",
+              "line": 214,
+              "column": 7
+            },
+            {
+              "title": "应该能够使用状态筛选",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 30000,
+                  "annotations": [
+                    {
+                      "type": "skip",
+                      "location": {
+                        "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts",
+                        "line": 272,
+                        "column": 12
+                      }
+                    }
+                  ],
+                  "expectedStatus": "skipped",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 3,
+                      "status": "skipped",
+                      "duration": 7606,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2025-11-01T03:08:38.749Z",
+                      "annotations": [
+                        {
+                          "type": "skip",
+                          "location": {
+                            "file": "/Users/ruiwang/Desktop/AI_Workbench/tests/e2e/projects.spec.ts",
+                            "line": 272,
+                            "column": 12
+                          }
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "skipped"
+                }
+              ],
+              "id": "3a2958b1096c5d9a8472-e7f1127391531a07df04",
+              "file": "projects.spec.ts",
+              "line": 240,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2025-11-01T03:08:12.783Z",
+    "duration": 34805.331,
+    "expected": 4,
+    "skipped": 1,
+    "unexpected": 3,
+    "flaky": 0
+  }
+}

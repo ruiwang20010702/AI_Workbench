@@ -590,6 +590,12 @@ export class TodoController {
 
       const { ids, data } = req.body as { ids: string[]; data: Partial<UpdateTodoRequest> & { due_date?: string; dueDate?: string } };
 
+      console.log('[TodoController.batchUpdate] 收到请求:', { 
+        userId: req.user.id, 
+        ids, 
+        data 
+      });
+
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({
           success: false,
@@ -638,7 +644,11 @@ export class TodoController {
         normalized.status = (data as any).status;
       }
 
+      console.log('[TodoController.batchUpdate] 规范化后的数据:', normalized);
+
       const updatedTodos = await TodoModel.batchUpdate(req.user!.id, ids, normalized);
+
+      console.log('[TodoController.batchUpdate] 更新结果:', updatedTodos.length, '条');
 
       return res.json({
         success: true,
@@ -646,7 +656,7 @@ export class TodoController {
         data: { todos: updatedTodos }
       });
     } catch (error) {
-      console.error('批量更新错误:', error);
+      console.error('[TodoController.batchUpdate] 批量更新错误:', error);
       return res.status(500).json({
         success: false,
         message: '服务器内部错误'

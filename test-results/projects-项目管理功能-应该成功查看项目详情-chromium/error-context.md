@@ -1,0 +1,365 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e4]:
+  - banner [ref=e5]:
+    - generic [ref=e7]:
+      - link "AI工作台" [ref=e9] [cursor=pointer]:
+        - /url: /
+        - img [ref=e11]
+        - generic [ref=e13]: AI工作台
+      - navigation [ref=e14]:
+        - link "首页" [ref=e15] [cursor=pointer]:
+          - /url: /
+          - img [ref=e16]
+          - text: 首页
+        - link "笔记" [ref=e19] [cursor=pointer]:
+          - /url: /notes
+          - img [ref=e20]
+          - text: 笔记
+        - link "待办" [ref=e23] [cursor=pointer]:
+          - /url: /todos
+          - img [ref=e24]
+          - text: 待办
+        - link "周报" [ref=e27] [cursor=pointer]:
+          - /url: /reports/weekly
+          - img [ref=e28]
+          - text: 周报
+        - link "AI助手" [ref=e30] [cursor=pointer]:
+          - /url: /ai
+          - img [ref=e31]
+          - text: AI助手
+        - link "设置" [ref=e33] [cursor=pointer]:
+          - /url: /settings
+          - img [ref=e34]
+          - text: 设置
+      - generic [ref=e37]:
+        - button [ref=e39] [cursor=pointer]:
+          - img [ref=e40]
+        - button "test@example1.com" [ref=e44] [cursor=pointer]:
+          - img [ref=e46]
+          - generic [ref=e49]: test@example1.com
+  - generic [ref=e50]:
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - link "新建笔记" [ref=e54] [cursor=pointer]:
+          - /url: /notes/new
+          - img [ref=e55]
+          - text: 新建笔记
+        - link "新建待办" [ref=e56] [cursor=pointer]:
+          - /url: /todos/new
+          - img [ref=e57]
+          - text: 新建待办
+      - navigation [ref=e58]:
+        - link "首页" [ref=e59] [cursor=pointer]:
+          - /url: /
+          - img [ref=e60]
+          - text: 首页
+        - link "所有笔记" [ref=e63] [cursor=pointer]:
+          - /url: /notes
+          - img [ref=e64]
+          - text: 所有笔记
+        - link "待办事项" [ref=e67] [cursor=pointer]:
+          - /url: /todos
+          - img [ref=e68]
+          - text: 待办事项
+        - link "项目管理" [ref=e71] [cursor=pointer]:
+          - /url: /projects
+          - img [ref=e72]
+          - text: 项目管理
+        - link "周报管理" [ref=e74] [cursor=pointer]:
+          - /url: /reports/weekly
+          - img [ref=e75]
+          - text: 周报管理
+        - link "AI 助手" [ref=e77] [cursor=pointer]:
+          - /url: /ai
+          - img [ref=e78]
+          - text: AI 助手
+      - generic [ref=e80]:
+        - heading "最近笔记" [level=3] [ref=e81]
+        - generic [ref=e83]: 暂无最近笔记
+    - main [ref=e84]:
+      - generic [ref=e85]:
+        - generic [ref=e88]:
+          - generic [ref=e89]:
+            - heading "项目管理" [level=1] [ref=e90]
+            - paragraph [ref=e91]: 管理和跟踪您的所有项目
+          - button "创建项目" [ref=e92] [cursor=pointer]:
+            - img [ref=e93]
+            - generic [ref=e94]: 创建项目
+        - generic [ref=e96]:
+          - generic [ref=e98]:
+            - generic [ref=e100]:
+              - img [ref=e101]
+              - textbox "搜索项目名称、描述或标签..." [ref=e104]: 详情测试项目_1761966502678
+            - generic [ref=e105]:
+              - button "筛选条件 1" [ref=e106] [cursor=pointer]:
+                - img [ref=e107]
+                - generic [ref=e109]: 筛选条件
+                - generic [ref=e110]: "1"
+              - button "清除筛选" [ref=e111] [cursor=pointer]:
+                - img [ref=e112]
+                - generic [ref=e115]: 清除筛选
+            - generic [ref=e116]:
+              - generic [ref=e118]: "已应用的筛选条件:"
+              - generic [ref=e120]:
+                - text: "搜索: 详情测试项目_1761966502678"
+                - button [ref=e121] [cursor=pointer]:
+                  - img [ref=e122]
+          - generic [ref=e125]:
+            - generic [ref=e127]:
+              - button "所有项目 0" [ref=e128] [cursor=pointer]:
+                - img [ref=e129]
+                - generic [ref=e131]: 所有项目
+                - generic [ref=e132]: "0"
+              - button "我参与的 0" [ref=e133] [cursor=pointer]:
+                - img [ref=e134]
+                - generic [ref=e139]: 我参与的
+                - generic [ref=e140]: "0"
+            - generic [ref=e141]:
+              - generic [ref=e143]: 显示 0 个项目
+              - generic [ref=e144]:
+                - button "仪表盘" [ref=e145] [cursor=pointer]:
+                  - img [ref=e146]
+                  - generic [ref=e149]: 仪表盘
+                - button "看板视图" [ref=e150] [cursor=pointer]:
+                  - img [ref=e151]
+                  - generic [ref=e153]: 看板视图
+                - button "甘特图" [ref=e154] [cursor=pointer]:
+                  - img [ref=e155]
+                  - generic [ref=e157]: 甘特图
+                - button "层级视图" [ref=e158] [cursor=pointer]:
+                  - img [ref=e159]
+                  - generic [ref=e161]: 层级视图
+            - generic [ref=e163]:
+              - generic [ref=e165]:
+                - generic [ref=e166]:
+                  - paragraph [ref=e167]: 总项目数
+                  - paragraph [ref=e168]: "0"
+                - img [ref=e170]
+              - generic [ref=e175]:
+                - generic [ref=e176]:
+                  - paragraph [ref=e177]: 进行中项目
+                  - paragraph [ref=e178]: "0"
+                - img [ref=e180]
+              - generic [ref=e184]:
+                - generic [ref=e185]:
+                  - paragraph [ref=e186]: 已完成项目
+                  - paragraph [ref=e187]: "0"
+                - img [ref=e189]
+              - generic [ref=e193]:
+                - generic [ref=e194]:
+                  - paragraph [ref=e195]: 团队成员
+                  - paragraph [ref=e196]: "0"
+                - img [ref=e198]
+              - generic [ref=e204]:
+                - generic [ref=e205]:
+                  - paragraph [ref=e206]: 总任务数
+                  - paragraph [ref=e207]: "0"
+                - img [ref=e209]
+              - generic [ref=e212]:
+                - generic [ref=e213]:
+                  - paragraph [ref=e214]: 已完成任务
+                  - paragraph [ref=e215]: "0"
+                - img [ref=e217]
+              - generic [ref=e221]:
+                - generic [ref=e222]:
+                  - paragraph [ref=e223]: 逾期任务
+                  - paragraph [ref=e224]: "0"
+                - img [ref=e226]
+              - generic [ref=e229]:
+                - generic [ref=e230]:
+                  - paragraph [ref=e231]: 即将到期
+                  - paragraph [ref=e232]: "0"
+                - img [ref=e234]
+            - generic [ref=e237]:
+              - generic [ref=e238]:
+                - heading "项目列表" [level=3] [ref=e239]
+                - generic [ref=e240]: 共 0 个项目
+              - generic [ref=e241]:
+                - img [ref=e243]
+                - heading "未找到匹配的项目" [level=3] [ref=e245]
+                - paragraph [ref=e246]: 尝试调整筛选条件或清除筛选器
+                - button "创建项目" [ref=e247] [cursor=pointer]:
+                  - img [ref=e248]
+                  - generic [ref=e249]: 创建项目
+            - generic [ref=e250]:
+              - generic [ref=e252]:
+                - generic [ref=e253]:
+                  - generic [ref=e254]:
+                    - img [ref=e255]
+                    - heading "项目进度概览" [level=3] [ref=e257]
+                  - generic [ref=e259]:
+                    - img [ref=e260]
+                    - generic [ref=e263]: 按进度排序
+                - generic [ref=e265]:
+                  - img [ref=e266]
+                  - paragraph [ref=e268]: 暂无项目数据
+              - generic [ref=e270]:
+                - generic [ref=e271]:
+                  - generic [ref=e272]:
+                    - img [ref=e273]
+                    - heading "最近活动" [level=3] [ref=e276]
+                  - generic [ref=e277]: 0 条活动
+                - generic [ref=e279]:
+                  - img [ref=e280]
+                  - paragraph [ref=e283]: 暂无活动记录
+            - generic [ref=e285]:
+              - generic [ref=e286]:
+                - generic [ref=e287]:
+                  - img [ref=e288]
+                  - heading "团队绩效概览" [level=3] [ref=e293]
+                - generic [ref=e294]:
+                  - img [ref=e295]
+                  - generic [ref=e298]: 3 名成员
+              - generic [ref=e299]:
+                - generic [ref=e300]:
+                  - generic [ref=e301]:
+                    - img [ref=e302]
+                    - generic [ref=e306]: 82%
+                  - paragraph [ref=e307]: 完成率
+                - generic [ref=e308]:
+                  - generic [ref=e309]:
+                    - img [ref=e310]
+                    - generic [ref=e313]: 88%
+                  - paragraph [ref=e314]: 平均效率
+                - generic [ref=e315]:
+                  - generic [ref=e316]:
+                    - img [ref=e317]
+                    - generic [ref=e320]: "435"
+                  - paragraph [ref=e321]: 总工时
+                - generic [ref=e322]:
+                  - generic [ref=e323]:
+                    - img [ref=e324]
+                    - generic [ref=e329]: "37"
+                  - paragraph [ref=e330]: 已完成任务
+              - generic [ref=e331]:
+                - generic [ref=e332]:
+                  - generic [ref=e334]: "1"
+                  - generic [ref=e337]: 张
+                  - generic [ref=e338]:
+                    - generic [ref=e339]:
+                      - heading "张三" [level=4] [ref=e340]
+                      - generic [ref=e341]: 前端开发
+                    - generic [ref=e342]:
+                      - generic [ref=e343]: "任务: 15/18"
+                      - generic [ref=e344]: "工时: 160h"
+                      - generic [ref=e345]: "项目: 2"
+                  - generic [ref=e346]:
+                    - generic [ref=e347]:
+                      - generic [ref=e348]: 83%
+                      - generic [ref=e349]: 完成率
+                    - generic [ref=e350]:
+                      - generic [ref=e351]: 92%
+                      - generic [ref=e352]: 优秀
+                - generic [ref=e356]:
+                  - generic [ref=e358]: "2"
+                  - generic [ref=e361]: 李
+                  - generic [ref=e362]:
+                    - generic [ref=e363]:
+                      - heading "李四" [level=4] [ref=e364]
+                      - generic [ref=e365]: 后端开发
+                    - generic [ref=e366]:
+                      - generic [ref=e367]: "任务: 12/15"
+                      - generic [ref=e368]: "工时: 145h"
+                      - generic [ref=e369]: "项目: 2"
+                  - generic [ref=e370]:
+                    - generic [ref=e371]:
+                      - generic [ref=e372]: 80%
+                      - generic [ref=e373]: 完成率
+                    - generic [ref=e374]:
+                      - generic [ref=e375]: 88%
+                      - generic [ref=e376]: 良好
+                - generic [ref=e380]:
+                  - generic [ref=e382]: "3"
+                  - generic [ref=e385]: 王
+                  - generic [ref=e386]:
+                    - generic [ref=e387]:
+                      - heading "王五" [level=4] [ref=e388]
+                      - generic [ref=e389]: 产品经理
+                    - generic [ref=e390]:
+                      - generic [ref=e391]: "任务: 10/12"
+                      - generic [ref=e392]: "工时: 130h"
+                      - generic [ref=e393]: "项目: 1"
+                  - generic [ref=e394]:
+                    - generic [ref=e395]:
+                      - generic [ref=e396]: 83%
+                      - generic [ref=e397]: 完成率
+                    - generic [ref=e398]:
+                      - generic [ref=e399]: 85%
+                      - generic [ref=e400]: 良好
+              - generic [ref=e404]:
+                - heading "绩效洞察" [level=4] [ref=e405]
+                - generic [ref=e406]:
+                  - generic [ref=e407]:
+                    - img [ref=e408]
+                    - generic [ref=e411]: "最佳表现: 张三 (92% 效率)"
+                  - generic [ref=e412]:
+                    - img [ref=e413]
+                    - generic [ref=e417]: "团队目标完成率: 82%"
+                  - generic [ref=e418]:
+                    - img [ref=e419]
+                    - generic [ref=e422]: "平均工时: 145h/人"
+                  - generic [ref=e423]:
+                    - img [ref=e424]
+                    - generic [ref=e427]: "高效成员: 3/3"
+            - generic [ref=e428]:
+              - img [ref=e430]
+              - heading "未找到匹配的项目" [level=3] [ref=e431]
+              - paragraph [ref=e432]: 尝试调整筛选条件或清除筛选器
+              - button "创建项目" [ref=e433] [cursor=pointer]
+        - dialog "创建新项目" [ref=e435]:
+          - generic [ref=e436]:
+            - heading "创建新项目" [level=2] [ref=e438]
+            - button [ref=e439] [cursor=pointer]:
+              - img [ref=e440]
+          - generic [ref=e444]:
+            - generic [ref=e446]:
+              - generic [ref=e447]: "1"
+              - generic [ref=e448]:
+                - paragraph [ref=e449]: 基本信息
+                - paragraph [ref=e450]: 项目名称、描述和时间
+            - generic [ref=e453]:
+              - generic [ref=e454]: "2"
+              - generic [ref=e455]:
+                - paragraph [ref=e456]: 项目设置
+                - paragraph [ref=e457]: 优先级、状态和层级
+            - generic [ref=e460]:
+              - generic [ref=e461]: "3"
+              - generic [ref=e462]:
+                - paragraph [ref=e463]: 团队协作
+                - paragraph [ref=e464]: 成员分配和标签
+          - generic [ref=e465]:
+            - generic [ref=e467]:
+              - generic [ref=e468]:
+                - generic [ref=e470]: 团队成员 - 批量导入
+                - generic [ref=e471]:
+                  - img [ref=e472]
+                  - textbox "批量输入团队成员邮箱，支持逗号、换行或空格分隔 例如： user1@example.com user2@example.com, user3@example.com user4@example.com user5@example.com" [ref=e477]:
+                    - /placeholder: "批量输入团队成员邮箱，支持逗号、换行或空格分隔\n例如：\nuser1@example.com\nuser2@example.com, user3@example.com\nuser4@example.com user5@example.com"
+                - generic [ref=e479]:
+                  - paragraph [ref=e480]: ✓ 支持逗号、换行或空格分隔
+                  - paragraph [ref=e481]: ✓ 自动过滤无效邮箱格式
+              - generic [ref=e482]:
+                - generic [ref=e483]: 默认角色
+                - combobox [ref=e484]:
+                  - option "管理员"
+                  - option "成员" [selected]
+                  - option "观察者"
+                - paragraph [ref=e485]: 批量添加邮箱时使用该角色。
+              - generic [ref=e486]:
+                - generic [ref=e487]: 项目标签
+                - textbox "输入标签，用逗号分隔" [ref=e488]
+                - paragraph [ref=e489]: "例如: 前端, React, 紧急"
+              - generic [ref=e490]:
+                - generic [ref=e491]: 项目文档
+                - generic [ref=e492]:
+                  - img [ref=e493]
+                  - paragraph [ref=e496]: 拖拽文件到此处或 点击上传
+                  - paragraph [ref=e497]: 支持 PDF, DOC, XLS, PPT 等格式，最大 10MB
+            - generic [ref=e498]:
+              - button "上一步" [ref=e500] [cursor=pointer]
+              - generic [ref=e501]:
+                - button "取消" [ref=e502] [cursor=pointer]
+                - button "创建项目" [active] [ref=e503] [cursor=pointer]
+```

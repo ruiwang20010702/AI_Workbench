@@ -28,8 +28,14 @@ import {
   batchAddProjectMembers,
   getProjectMemberStats,
   searchAvailableUsers,
-  getRecentMembers
+  getRecentMembers,
+  findUsersByEmails
 } from '../controllers/projectMemberController';
+import {
+  batchAddPendingMembers,
+  getPendingMembers,
+  deletePendingMember
+} from '../controllers/pendingMemberController';
 
 const router = express.Router();
 
@@ -55,6 +61,7 @@ router.get('/:id/stats', getProjectStats);              // 获取项目统计信
 router.get('/:id/sub-projects', getSubProjects);        // 获取子项目
 
 // 项目成员相关路由
+router.post('/members/find-by-emails', findUsersByEmails);                // 根据邮箱批量查找用户（需要放在前面避免路由冲突）
 router.get('/:project_id/members', getProjectMembers);                    // 获取项目成员列表
 router.post('/:project_id/members', addProjectMember);                    // 添加项目成员
 router.post('/:project_id/members/batch', batchAddProjectMembers);        // 批量添加项目成员
@@ -63,6 +70,11 @@ router.delete('/:project_id/members/:member_id', removeProjectMember);    // 移
 router.get('/:project_id/members/stats', getProjectMemberStats);          // 获取项目成员统计信息
 router.get('/:project_id/members/search', searchAvailableUsers);          // 搜索可添加的用户
 router.get('/:project_id/members/recent', getRecentMembers);              // 获取最近的项目成员
+
+// 待定成员相关路由
+router.post('/:project_id/pending-members/batch', batchAddPendingMembers);  // 批量添加待定成员
+router.get('/:project_id/pending-members', getPendingMembers);              // 获取待定成员列表
+router.delete('/:project_id/pending-members/:id', deletePendingMember);     // 删除待定成员
 
 // 用户项目相关路由
 router.get('/user/projects', getUserProjects);          // 获取用户参与的项目列表

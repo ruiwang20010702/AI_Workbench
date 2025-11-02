@@ -1,4 +1,4 @@
-import pool from '../config/database';
+import { supabaseAdmin } from '../config/database';
 import { Notification, NotificationType } from '../types';
 
 export interface CreateNotificationRequest {
@@ -16,22 +16,25 @@ export interface UpdateNotificationRequest {
 export class NotificationModel {
   // 创建通知
   static async create(notificationData: CreateNotificationRequest): Promise<Notification> {
-    const query = `
-      INSERT INTO notifications (user_id, todo_id, type, title, message, is_read)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `;
-    const values = [
-      notificationData.user_id,
-      notificationData.todo_id,
-      notificationData.type,
-      notificationData.title,
-      notificationData.message,
-      false
-    ];
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .insert({
+        user_id: notificationData.user_id,
+        todo_id: notificationData.todo_id,
+        type: notificationData.type,
+        title: notificationData.title,
+        message: notificationData.message,
+        is_read: false
+      })
+      .select()
+      .single();
 
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    if (error) {
+      console.error('Error creating notification:', error);
+      throw error;
+    }
+
+    return data;
   }
 
   // 根据用户ID获取通知列表
@@ -43,78 +46,126 @@ export class NotificationModel {
       offset?: number;
     } = {}
   ): Promise<Notification[]> {
-    let query = `
-      SELECT n.*, t.title as todo_title, t.due_date as todo_due_date
-      FROM notifications n
-      LEFT JOIN todos t ON n.todo_id = t.id
-      WHERE n.user_id = $1
-    `;
-    const values: any[] = [userId];
-    let paramCount = 2;
+    let query = supabaseAdmin
+      .from('notifications')
+      .select(`
+        *,
+        todos:todo_id (
+          title,
+          due_date
+        )
+      `)
+      .eq('user_id', userId);
 
     if (options.isRead !== undefined) {
-      query += ` AND n.is_read = $${paramCount++}`;
-      values.push(options.isRead);
+      query = query.eq('is_read', options.isRead);
     }
 
-    query += ` ORDER BY n.created_at DESC`;
+    query = query.order('created_at', { ascending: false });
 
     if (options.limit) {
-      query += ` LIMIT $${paramCount++}`;
-      values.push(options.limit);
+      query = query.limit(options.limit);
     }
 
     if (options.offset) {
-      query += ` OFFSET $${paramCount++}`;
-      values.push(options.offset);
+      const end = options.offset + (options.limit || 20) - 1;
+      query = query.range(options.offset, end);
     }
 
-    const result = await pool.query(query, values);
-    return result.rows;
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error finding notifications:', error);
+      throw error;
+    }
+
+    // 展平 todos 关系数据
+    return (data || []).map((notification: any) => {
+      const todo = notification.todos;
+      delete notification.todos;
+      return {
+        ...notification,
+        todo_title: todo?.title,
+        todo_due_date: todo?.due_date
+      };
+    });
   }
 
   // 获取未读通知数量
   static async getUnreadCount(userId: string): Promise<number> {
-    const query = `
-      SELECT COUNT(*) as count
-      FROM notifications
-      WHERE user_id = $1 AND is_read = false
-    `;
-    const result = await pool.query(query, [userId]);
-    return parseInt(result.rows[0].count);
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+
+    if (error) {
+      console.error('Error getting unread count:', error);
+      throw error;
+    }
+
+    return data?.length || 0;
   }
 
   // 标记通知为已读
   static async markAsRead(id: string, userId: string): Promise<Notification | null> {
-    const query = `
-      UPDATE notifications
-      SET is_read = true, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1 AND user_id = $2
-      RETURNING *
-    `;
-    const result = await pool.query(query, [id, userId]);
-    return result.rows[0] || null;
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .update({ 
+        is_read: true, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return null; // Not found
+      }
+      console.error('Error marking notification as read:', error);
+      throw error;
+    }
+
+    return data;
   }
 
   // 批量标记为已读
   static async markAllAsRead(userId: string): Promise<void> {
-    const query = `
-      UPDATE notifications
-      SET is_read = true, updated_at = CURRENT_TIMESTAMP
-      WHERE user_id = $1 AND is_read = false
-    `;
-    await pool.query(query, [userId]);
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .update({ 
+        is_read: true, 
+        updated_at: new Date().toISOString() 
+      })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+
+    if (error) {
+      console.error('Error marking all as read:', error);
+      throw error;
+    }
   }
 
   // 删除过期通知（已读且超过一周）
   static async deleteExpired(): Promise<number> {
-    const query = `
-      DELETE FROM notifications
-      WHERE is_read = true 
-      AND updated_at < NOW() - INTERVAL '7 days'
-    `;
-    const result = await pool.query(query);
-    return result.rowCount || 0;
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .delete()
+      .eq('is_read', true)
+      .lt('updated_at', oneWeekAgo.toISOString())
+      .select('id');
+
+    if (error) {
+      console.error('Error deleting expired notifications:', error);
+      throw error;
+    }
+
+    return data?.length || 0;
   }
 
   // 检查是否已存在相同类型的通知
@@ -123,22 +174,32 @@ export class NotificationModel {
     todoId: string,
     type: NotificationType
   ): Promise<boolean> {
-    const query = `
-      SELECT COUNT(*) as count
-      FROM notifications
-      WHERE user_id = $1 AND todo_id = $2 AND type = $3
-    `;
-    const result = await pool.query(query, [userId, todoId, type]);
-    return parseInt(result.rows[0].count) > 0;
+    const { data, error } = await supabaseAdmin
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('todo_id', todoId)
+      .eq('type', type);
+
+    if (error) {
+      console.error('Error checking notification existence:', error);
+      throw error;
+    }
+
+    return (data?.length || 0) > 0;
   }
 
   // 根据待办事项ID删除相关通知
   static async deleteByTodoId(todoId: string): Promise<void> {
-    const query = `
-      DELETE FROM notifications
-      WHERE todo_id = $1
-    `;
-    await pool.query(query, [todoId]);
+    const { error } = await supabaseAdmin
+      .from('notifications')
+      .delete()
+      .eq('todo_id', todoId);
+
+    if (error) {
+      console.error('Error deleting notifications by todo ID:', error);
+      throw error;
+    }
   }
 
   // 获取需要发送通知的待办事项
@@ -148,50 +209,76 @@ export class NotificationModel {
     const threeHoursLater = new Date(now.getTime() + 3 * 60 * 60 * 1000);
     const fiveMinutesLater = new Date(now.getTime() + 5 * 60 * 1000);
 
-    const query = `
-      SELECT DISTINCT t.*, u.email as user_email
-      FROM todos t
-      JOIN users u ON t.user_id = u.id
-      WHERE t.due_date IS NOT NULL 
-      AND t.completed = false
-      AND (
-        -- 1天前提醒
-        (t.due_date <= $1 AND t.due_date > $2 AND NOT EXISTS (
-          SELECT 1 FROM notifications n 
-          WHERE n.todo_id = t.id AND n.type = 'due_1_day'
-        ))
-        OR
-        -- 3小时前提醒
-        (t.due_date <= $3 AND t.due_date > $4 AND NOT EXISTS (
-          SELECT 1 FROM notifications n 
-          WHERE n.todo_id = t.id AND n.type = 'due_3_hours'
-        ))
-        OR
-        -- 5分钟前提醒
-        (t.due_date <= $5 AND t.due_date > $6 AND NOT EXISTS (
-          SELECT 1 FROM notifications n 
-          WHERE n.todo_id = t.id AND n.type = 'due_5_minutes'
-        ))
-        OR
-        -- 即时提醒
-        (t.due_date <= $7 AND NOT EXISTS (
-          SELECT 1 FROM notifications n 
-          WHERE n.todo_id = t.id AND n.type = 'due_now'
-        ))
-      )
-    `;
+    // 获取所有未完成且有截止日期的待办事项
+    const { data: todos, error: todosError } = await supabaseAdmin
+      .from('todos')
+      .select(`
+        *,
+        users:user_id (email)
+      `)
+      .eq('completed', false)
+      .not('due_date', 'is', null);
 
-    const values = [
-      oneDayLater,
-      now,
-      threeHoursLater,
-      now,
-      fiveMinutesLater,
-      now,
-      now
-    ];
+    if (todosError) {
+      console.error('Error fetching todos needing notification:', todosError);
+      throw todosError;
+    }
 
-    const result = await pool.query(query, values);
-    return result.rows;
+    if (!todos || todos.length === 0) {
+      return [];
+    }
+
+    // 获取所有现有通知
+    const { data: existingNotifications, error: notificationsError } = await supabaseAdmin
+      .from('notifications')
+      .select('todo_id, type')
+      .in('todo_id', todos.map(t => t.id));
+
+    if (notificationsError) {
+      console.error('Error fetching existing notifications:', notificationsError);
+      throw notificationsError;
+    }
+
+    const notificationMap = new Map<string, Set<string>>();
+    (existingNotifications || []).forEach((n: any) => {
+      if (!notificationMap.has(n.todo_id)) {
+        notificationMap.set(n.todo_id, new Set());
+      }
+      notificationMap.get(n.todo_id)!.add(n.type);
+    });
+
+    // 筛选需要发送通知的待办事项
+    const needsNotification: any[] = [];
+
+    for (const todo of todos) {
+      const dueDate = new Date(todo.due_date);
+      const existingTypes = notificationMap.get(todo.id) || new Set();
+      const user = Array.isArray(todo.users) ? todo.users[0] : todo.users;
+
+      const todoWithEmail = {
+        ...todo,
+        user_email: user?.email
+      };
+      delete todoWithEmail.users;
+
+      // 1天前提醒
+      if (dueDate <= oneDayLater && dueDate > now && !existingTypes.has('due_1_day')) {
+        needsNotification.push({ ...todoWithEmail, notification_type: 'due_1_day' });
+      }
+      // 3小时前提醒
+      else if (dueDate <= threeHoursLater && dueDate > now && !existingTypes.has('due_3_hours')) {
+        needsNotification.push({ ...todoWithEmail, notification_type: 'due_3_hours' });
+      }
+      // 5分钟前提醒
+      else if (dueDate <= fiveMinutesLater && dueDate > now && !existingTypes.has('due_5_minutes')) {
+        needsNotification.push({ ...todoWithEmail, notification_type: 'due_5_minutes' });
+      }
+      // 即时提醒
+      else if (dueDate <= now && !existingTypes.has('due_now')) {
+        needsNotification.push({ ...todoWithEmail, notification_type: 'due_now' });
+      }
+    }
+
+    return needsNotification;
   }
 }

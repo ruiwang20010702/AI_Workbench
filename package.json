@@ -9,7 +9,15 @@
     "dev:server": "cd server && npm run dev",
     "build": "cd client && npm run build",
     "start": "cd server && npm start",
-    "install:all": "npm install && cd client && npm install && cd ../server && npm install"
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:projects": "playwright test tests/e2e/projects.spec.ts",
+    "test:tasks": "playwright test tests/e2e/tasks.spec.ts",
+    "test:report": "playwright show-report",
+    "test:install": "playwright install"
   },
   "keywords": [
     "ai",

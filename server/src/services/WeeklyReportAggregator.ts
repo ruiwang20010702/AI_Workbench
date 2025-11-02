@@ -1,5 +1,5 @@
-// @ts-nocheck
-import { DataSourceFactory, WeeklyData } from './dataSources';
+import { DataSourceFactory, WeeklyData, IDataSource } from './dataSources';
+import { CacheService } from '../utils/cache';
 
 /**
  * 周报聚合配置接口
@@ -30,6 +30,16 @@ export class WeeklyReportAggregator {
     endDate: string,
     config?: AggregatorConfig
   ): Promise<WeeklyData> {
+    // 生成缓存键
+    const cacheKey = `weekly_data:${userId}:${startDate}:${endDate}`;
+    
+    // 检查缓存
+    const cached = await CacheService.get<WeeklyData>(cacheKey);
+    if (cached) {
+      console.log(`[WeeklyReportAggregator] Using cached data for ${cacheKey}`);
+      return cached;
+    }
+
     console.log(`[WeeklyReportAggregator] Starting aggregation for user ${userId}`);
     console.log(`[WeeklyReportAggregator] Period: ${startDate} to ${endDate}`);
 
@@ -66,6 +76,9 @@ export class WeeklyReportAggregator {
         user_id: userId,
       };
 
+      // 缓存结果（5分钟）
+      await CacheService.set(cacheKey, mergedData, 300);
+
       console.log(`[WeeklyReportAggregator] Aggregation completed successfully`);
       return mergedData;
     } catch (error) {
@@ -79,13 +92,13 @@ export class WeeklyReportAggregator {
   /**
    * 获取要使用的数据源列表
    */
-  private static getDataSources(config?: AggregatorConfig) {
+  private static getDataSources(config?: AggregatorConfig): IDataSource[] {
     // 如果指定了数据源列表，则使用指定的
     if (config?.data_sources && config.data_sources.length > 0) {
       const sources = config.data_sources
         .map((name) => DataSourceFactory.get(name))
-        .filter((ds) => ds !== undefined && ds.isEnabled());
-      return sources as any[];
+        .filter((ds): ds is IDataSource => ds !== undefined && ds.isEnabled());
+      return sources;
     }
 
     // 否则使用所有启用的数据源

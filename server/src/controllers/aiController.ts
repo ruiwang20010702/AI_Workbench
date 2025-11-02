@@ -3,9 +3,9 @@ import axios from 'axios';
 import { AIService } from '../services/aiService';
 import { AIGenerateRequest } from '../types';
 import { AIUsageLogModel } from '../models/AIUsageLog';
-import pool from '../config/database';
 import { NoteModel } from '../models/Note';
 import { TodoModel } from '../models/Todo';
+import { supabaseAdmin } from '../config/database';
 
 export class AIController {
   // AI文本生成
@@ -599,32 +599,45 @@ export class AIController {
       const totalTokens = (totals.total_input_tokens || 0) + (totals.total_output_tokens || 0);
 
       // 类型分布
-      const byTypeResult = await pool.query(
-        `SELECT action_type, COUNT(*)::int AS count FROM ai_usage_logs WHERE user_id = $1 GROUP BY action_type`,
-        [userId]
-      );
-      const requestsByType: Record<string, number> = {};
-      for (const row of byTypeResult.rows) {
-        requestsByType[row.action_type] = row.count;
+      const { data: actionTypeLogs, error: actionTypeError } = await supabaseAdmin
+        .from('ai_usage_logs')
+        .select('action_type')
+        .eq('user_id', userId);
+      
+      if (actionTypeError) {
+        console.error('Error fetching action type logs:', actionTypeError);
+        throw actionTypeError;
       }
+      
+      const requestsByType: Record<string, number> = {};
+      (actionTypeLogs || []).forEach((log: any) => {
+        requestsByType[log.action_type] = (requestsByType[log.action_type] || 0) + 1;
+      });
 
       // 月度汇总（近6个月）
-      const monthlyResult = await pool.query(
-        `SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
-                COUNT(*)::int AS requests,
-                COALESCE(SUM(input_tokens + output_tokens), 0)::int AS tokens
-         FROM ai_usage_logs
-         WHERE user_id = $1
-         GROUP BY 1
-         ORDER BY 1 DESC
-         LIMIT 6`,
-        [userId]
-      );
-      const monthlyUsage = monthlyResult.rows.map((r: any) => ({
-        month: r.month,
-        requests: r.requests,
-        tokens: r.tokens
-      }));
+      const { data: monthlyLogs, error: monthlyError } = await supabaseAdmin
+        .from('ai_usage_logs')
+        .select('created_at, input_tokens, output_tokens')
+        .eq('user_id', userId);
+      
+      if (monthlyError) {
+        console.error('Error fetching monthly logs:', monthlyError);
+        throw monthlyError;
+      }
+      
+      const monthlyMap: Record<string, any> = {};
+      (monthlyLogs || []).forEach((log: any) => {
+        const month = new Date(log.created_at).toISOString().substring(0, 7); // YYYY-MM
+        if (!monthlyMap[month]) {
+          monthlyMap[month] = { month, requests: 0, tokens: 0 };
+        }
+        monthlyMap[month].requests += 1;
+        monthlyMap[month].tokens += (log.input_tokens || 0) + (log.output_tokens || 0);
+      });
+      
+      const monthlyUsage = Object.values(monthlyMap)
+        .sort((a: any, b: any) => b.month.localeCompare(a.month))
+        .slice(0, 6);
 
       // 返回纯数据对象，符合前端aiService.getUsageStats的期待
       return res.json({

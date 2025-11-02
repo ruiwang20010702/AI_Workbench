@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { UserModel } from '../models/User';
+import { PendingMemberModel } from '../models/PendingMember';
 import { hashPassword, comparePassword } from '../utils/password';
 import { generateToken } from '../utils/jwt';
 import { LoginRequest, RegisterRequest, AuthResponse } from '../types';
@@ -32,6 +33,17 @@ export class AuthController {
       // 防御性检查：插入失败或数据库未配置时
       if (!user || !user.id) {
         throw new Error('注册失败：数据库未返回有效用户记录');
+      }
+
+      // 🆕 自动转换待定成员为正式成员
+      try {
+        const conversionResult = await PendingMemberModel.convertToMembers(user.id, email);
+        if (conversionResult.converted_count > 0) {
+          console.log(`✅ 用户 ${email} 注册成功，自动加入 ${conversionResult.converted_count} 个项目`);
+        }
+      } catch (error) {
+        // 转换失败不阻断注册流程，只记录日志
+        console.error('⚠️  待定成员转换失败（不影响注册）:', error);
       }
 
       // 生成JWT令牌

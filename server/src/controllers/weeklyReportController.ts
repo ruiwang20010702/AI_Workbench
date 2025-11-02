@@ -5,6 +5,7 @@ import { WeeklyReportAggregator } from '../services/WeeklyReportAggregator';
 import { TemplateEngine } from '../services/TemplateEngine';
 import { DocxGenerator } from '../services/DocxGenerator';
 import { AIReportOptimizer } from '../services/AIReportOptimizer';
+import { Validator } from '../utils/validation';
 
 /**
  * 生成周报
@@ -19,9 +20,12 @@ export const generateWeeklyReport = async (req: Request, res: Response): Promise
 
     const { week_start_date, week_end_date, template_id, title, auto_optimize } = req.body;
 
-    // 验证必需参数
-    if (!week_start_date || !week_end_date) {
-      return res.status(400).json({ error: 'week_start_date and week_end_date are required' });
+    console.log('[WeeklyReport] Request params:', { week_start_date, week_end_date, template_id, title, auto_optimize, auto_optimize_type: typeof auto_optimize });
+
+    // 验证请求数据
+    const validation = Validator.validateWeeklyReportRequest(req.body);
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.error });
     }
 
     // 检查是否已存在该周期的周报
@@ -72,6 +76,24 @@ export const generateWeeklyReport = async (req: Request, res: Response): Promise
       week_end_date,
     };
 
+    console.log('[WeeklyReport] Template data:', JSON.stringify({
+      tasks: {
+        completed_count: templateData.tasks?.completed_count,
+        total: templateData.tasks?.total,
+        completion_rate: templateData.tasks?.completion_rate,
+        completed_length: templateData.tasks?.completed?.length,
+        in_progress_length: templateData.tasks?.in_progress?.length,
+      },
+      projects: {
+        total: templateData.projects?.total,
+        active_length: templateData.projects?.active?.length,
+      },
+      summary: {
+        highlights: templateData.highlights,
+        concerns: templateData.concerns,
+      }
+    }, null, 2));
+
     // 4. 渲染模板
     let content = TemplateEngine.renderMarkdown(template.content, templateData);
 
@@ -82,15 +104,21 @@ export const generateWeeklyReport = async (req: Request, res: Response): Promise
     let aiOptimized = false;
     let aiSuggestions: any[] = [];
 
+    console.log('[WeeklyReport] AI optimization check:', { auto_optimize, will_optimize: !!auto_optimize });
+
     if (auto_optimize) {
+      console.log('[WeeklyReport] Starting AI optimization...');
       try {
         content = await AIReportOptimizer.optimizeContent(content);
         aiSuggestions = await AIReportOptimizer.generateSuggestions(content, weeklyData.metadata);
         aiOptimized = true;
+        console.log('[WeeklyReport] AI optimization completed successfully');
       } catch (error) {
         console.error('[WeeklyReport] AI optimization failed:', error);
         // AI优化失败不影响周报生成
       }
+    } else {
+      console.log('[WeeklyReport] Skipping AI optimization (auto_optimize = false)');
     }
 
     // 7. 创建周报记录
@@ -210,6 +238,26 @@ export const updateWeeklyReport = async (req: Request, res: Response): Promise<R
     }
 
     const { title, content, status } = req.body;
+
+    // 验证标题
+    if (title) {
+      const titleValidation = Validator.validateStringLength(title, '标题', 1, 100);
+      if (!titleValidation.valid) {
+        return res.status(400).json({ error: titleValidation.error });
+      }
+    }
+
+    // 验证状态
+    if (status) {
+      const statusValidation = Validator.validateEnum(
+        status,
+        ['draft', 'published', 'archived'],
+        '状态'
+      );
+      if (!statusValidation.valid) {
+        return res.status(400).json({ error: statusValidation.error });
+      }
+    }
 
     const updateData: any = {};
     if (title) updateData.title = title;

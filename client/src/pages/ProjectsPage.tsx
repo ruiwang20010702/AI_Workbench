@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Plus, Calendar, BarChart3, PieChart, TreePine } from 'lucide-react';
+import { Plus, Calendar, BarChart3, PieChart, TreePine, Users, FolderOpen } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { ProjectCreateModal } from '../components/projects/ProjectCreateModal';
 import { ProjectFilters } from '../components/projects/ProjectFilters';
@@ -8,6 +8,8 @@ import { ProjectProgressChart } from '../components/dashboard/ProjectProgressCha
 import { RecentActivity } from '../components/dashboard/RecentActivity';
 import { TeamPerformance } from '../components/dashboard/TeamPerformance';
 import { ProjectHierarchy } from '../components/projects/ProjectHierarchy';
+import { ProjectCard } from '../components/projects/ProjectCard';
+import { ProjectDetailModal } from '../components/projects/ProjectDetailModal';
 import { 
   Project, 
   CreateProjectRequest, 
@@ -20,6 +22,7 @@ import { TaskKanbanBoard } from '../components/tasks/TaskKanbanBoard';
 import { ProjectGanttChart } from '../components/projects/ProjectGanttChart.tsx';
 
 type ViewMode = 'dashboard' | 'kanban' | 'gantt' | 'hierarchy';
+type ProjectScope = 'all' | 'my'; // 新增：项目范围类型
 
 interface ProjectFilters {
   search: string;
@@ -39,7 +42,9 @@ interface ProjectFilters {
 
 export const ProjectsPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
+  const [projectScope, setProjectScope] = useState<ProjectScope>('all'); // 新增：项目范围状态
   const [projects, setProjects] = useState<Project[]>([]);
+  const [myProjects, setMyProjects] = useState<Project[]>([]); // 新增：我参与的项目
   // 当前选中的项目（用于看板/甘特）
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
 
@@ -58,6 +63,11 @@ export const ProjectsPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [parentProject, setParentProject] = useState<Project | null>(null);
+  const [isSubmittingProject, setIsSubmittingProject] = useState(false); // 防止重复提交项目
+  
+  // 项目详情弹窗状态
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [detailProject, setDetailProject] = useState<Project | null>(null);
   
   const [filters, setFilters] = useState<ProjectFilters>({
     search: '',
@@ -73,6 +83,7 @@ export const ProjectsPage: React.FC = () => {
   // 加载项目数据
   useEffect(() => {
     loadProjects();
+    loadMyProjects(); // 新增：同时加载我参与的项目
   }, [filters]);
 
   // 加载任务统计（全局，不按项目过滤）
@@ -117,6 +128,20 @@ export const ProjectsPage: React.FC = () => {
     }
   };
 
+  // 新增：加载用户参与的项目
+  const loadMyProjects = async () => {
+    try {
+      const response = await projectService.getUserProjects({
+        page: 1,
+        limit: 100 // 加载足够多的项目
+      });
+      setMyProjects(response.projects || []);
+    } catch (error) {
+      console.error('加载我参与的项目失败:', error);
+      setMyProjects([]);
+    }
+  };
+
 
 
   const viewModeOptions = [
@@ -149,12 +174,27 @@ export const ProjectsPage: React.FC = () => {
       try {
         await projectService.deleteProject(projectId);
         setProjects(prev => prev.filter(p => p.id !== projectId));
-
+        // 如果删除的是当前查看的项目，关闭详情弹窗
+        if (detailProject?.id === projectId) {
+          setShowDetailModal(false);
+          setDetailProject(null);
+        }
       } catch (error) {
         console.error('删除项目失败:', error);
         alert('删除项目失败，请稍后重试');
       }
     }
+  };
+
+  const handleViewProject = (project: Project) => {
+    setDetailProject(project);
+    setShowDetailModal(true);
+  };
+
+  const handleEditFromDetail = (project: Project) => {
+    setShowDetailModal(false);
+    setEditingProject(project);
+    setShowCreateModal(true);
   };
 
   const handleStatusChange = async (projectId: string, status: Project['status']) => {
@@ -233,36 +273,72 @@ export const ProjectsPage: React.FC = () => {
     }
   };
 
-  // 按邮箱搜索可用用户并批量添加为成员（支持默认角色）
+  // 🆕 按邮箱搜索可用用户并批量添加为成员（支持默认角色 + 待定成员）
   const addMembersByEmails = async (projectId: string, emails: string[], role: 'admin' | 'member' | 'observer' = 'member') => {
     try {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const clean = Array.from(new Set((emails || []).map(e => e.trim()).filter(e => emailRegex.test(e))))
+      const clean = Array.from(new Set((emails || []).map(e => e.trim().toLowerCase()).filter(e => emailRegex.test(e))))
         .slice(0, 50); // 保护：最多处理 50 个
       if (clean.length === 0) return { added_count: 0 };
 
-      const requests: Array<{ user_id: string; role: 'admin' | 'member' | 'observer' }> = [];
-      for (const email of clean) {
+      // 使用新的 API 批量查找已注册用户
+      const registeredUsersData = await projectService.findUsersByEmails(clean);
+      const registeredEmailsSet = new Set(registeredUsersData.map(u => u.email.toLowerCase()));
+
+      // 分类：已注册用户 vs 未注册邮箱
+      const registeredUsers: Array<{ user_id: string; role: 'admin' | 'member' | 'observer' }> = 
+        registeredUsersData.map(user => ({ user_id: user.id, role }));
+      
+      const unregisteredEmails = clean.filter(email => !registeredEmailsSet.has(email));
+
+      let totalAdded = 0;
+      let alreadyMemberCount = 0;
+
+      // 1. 添加已注册用户为正式成员
+      if (registeredUsers.length > 0) {
         try {
-          const users = await projectService.searchAvailableUsers(projectId, email, 1);
-          if (Array.isArray(users) && users.length > 0) {
-            // 使用传入的默认角色
-            requests.push({ user_id: users[0].id, role });
+          const result1 = await projectService.batchAddProjectMembers(projectId, registeredUsers);
+          totalAdded += result1.added_count || 0;
+          alreadyMemberCount = registeredUsers.length - (result1.added_count || 0);
+          console.log(`✅ 添加了 ${result1.added_count} 个已注册用户`);
+          if (alreadyMemberCount > 0) {
+            console.log(`ℹ️  ${alreadyMemberCount} 个用户已经是项目成员`);
           }
         } catch (err) {
-          console.warn('搜索可用用户失败:', email, err);
+          console.error('添加已注册用户失败:', err);
         }
       }
 
-      if (requests.length === 0) return { added_count: 0 };
-      return await projectService.batchAddProjectMembers(projectId, requests);
+      // 2. 添加未注册邮箱为待定成员
+      if (unregisteredEmails.length > 0) {
+        try {
+          const pendingMembers = unregisteredEmails.map(email => ({ email, role }));
+          const result2 = await projectService.batchAddPendingMembers(projectId, pendingMembers);
+          totalAdded += result2.added_count || 0;
+          console.log(`✅ 添加了 ${result2.added_count} 个待定成员（未注册邮箱）`);
+          if (result2.skipped && result2.skipped.length > 0) {
+            console.log(`ℹ️  跳过 ${result2.skipped.length} 个重复邮箱`);
+          }
+        } catch (err) {
+          console.error('添加待定成员失败:', err);
+        }
+      }
+
+      return { added_count: totalAdded, already_member_count: alreadyMemberCount };
     } catch (error) {
       console.error('批量添加成员失败:', error);
-      return { added_count: 0 };
+      return { added_count: 0, already_member_count: 0 };
     }
   };
 
-  const handleProjectSubmit = async (projectData: CreateProjectRequest, teamEmails?: string[], defaultRole?: 'admin' | 'member' | 'observer', initialTasks?: CreateTaskRequest[]) => {
+  const handleProjectSubmit = async (projectData: CreateProjectRequest, teamEmails?: string[], defaultRole?: 'admin' | 'member' | 'observer') => {
+    // 防止重复提交
+    if (isSubmittingProject) {
+      console.log('项目正在提交中，请勿重复操作');
+      return;
+    }
+    
+    setIsSubmittingProject(true);
     try {
       if (editingProject) {
         // Update existing project
@@ -276,19 +352,6 @@ export const ProjectsPage: React.FC = () => {
           }
           return p;
         }));
-
-        // 编辑模式也支持创建初始任务（第4步的任务）
-        if (initialTasks && initialTasks.length > 0) {
-          try {
-            for (const taskData of initialTasks) {
-              const taskWithProject = { ...taskData, project_id: editingProject.id };
-              await taskService.createTask(taskWithProject);
-            }
-          } catch (taskError) {
-            console.error('创建初始任务失败:', taskError);
-            // 不阻止项目更新，只记录错误
-          }
-        }
       } else {
         // Create new project
         const newProject = await projectService.createProject(projectData);
@@ -296,20 +359,6 @@ export const ProjectsPage: React.FC = () => {
         // 批量添加成员（仅添加尚未在项目中的用户）
         const addRes = await addMembersByEmails(newProject.id, teamEmails || [], defaultRole ?? 'member');
         const added = addRes?.added_count || 0;
-        
-        // 创建初始任务
-        if (initialTasks && initialTasks.length > 0) {
-          try {
-            for (const taskData of initialTasks) {
-              // 设置项目ID
-              const taskWithProject = { ...taskData, project_id: newProject.id };
-              await taskService.createTask(taskWithProject);
-            }
-          } catch (taskError) {
-            console.error('创建初始任务失败:', taskError);
-            // 不阻止项目创建，只是记录错误
-          }
-        }
         
         setProjects(prev => [...prev, { ...newProject, team_members: (newProject.team_members || 0) + added }]);
       }
@@ -321,6 +370,8 @@ export const ProjectsPage: React.FC = () => {
     } catch (error) {
       console.error('保存项目失败:', error);
       alert('保存项目失败，请稍后重试');
+    } finally {
+      setIsSubmittingProject(false);
     }
   };
 
@@ -338,8 +389,11 @@ export const ProjectsPage: React.FC = () => {
   };
 
 
+  // 新增：根据项目范围选择数据源
+  const currentProjects = projectScope === 'my' ? myProjects : projects;
+
   // Filter projects based on current filters
-  const filteredProjects = projects.filter(project => {
+  const filteredProjects = currentProjects.filter(project => {
     // Search filter
     if (filters.search && !project.name.toLowerCase().includes(filters.search.toLowerCase()) &&
         !(project.description?.toLowerCase().includes(filters.search.toLowerCase()))) {
@@ -504,11 +558,60 @@ export const ProjectsPage: React.FC = () => {
 
           {/* Projects Content */}
           <div className="lg:col-span-3">
+            {/* 新增：项目范围选择器 */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setProjectScope('all')}
+                  className={cn(
+                    "flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    projectScope === 'all'
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  )}
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  <span>所有项目</span>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-xs",
+                    projectScope === 'all'
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-600"
+                  )}>
+                    {projects.length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setProjectScope('my')}
+                  className={cn(
+                    "flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                    projectScope === 'my'
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  )}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>我参与的</span>
+                  <span className={cn(
+                    "px-2 py-0.5 rounded-full text-xs",
+                    projectScope === 'my'
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-200 text-gray-600"
+                  )}>
+                    {myProjects.length}
+                  </span>
+                </button>
+              </div>
+            </div>
+
             {/* View Mode Selector */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-4">
                 <span className="text-sm text-gray-600">
                   显示 {filteredProjects.length} 个项目
+                  {projectScope === 'my' && (
+                    <span className="ml-2 text-blue-600">(我参与的)</span>
+                  )}
                 </span>
               </div>
 
@@ -538,10 +641,57 @@ export const ProjectsPage: React.FC = () => {
                 {/* 顶部项目统计卡片（保留现有 ProjectDashboard） */}
                 <ProjectDashboard stats={projectStats} />
 
-                
+                {/* 项目卡片网格 */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      项目列表
+                    </h3>
+                    <span className="text-sm text-gray-600">
+                      共 {filteredProjects.length} 个项目
+                    </span>
+                  </div>
+                  {filteredProjects.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredProjects.map((project) => (
+                        <ProjectCard
+                          key={project.id}
+                          project={project}
+                          onView={handleViewProject}
+                          onEdit={handleEditProject}
+                          onDelete={handleDeleteProject}
+                          onStatusChange={handleStatusChange}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                      <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <FolderOpen className="w-8 h-8 text-gray-400" />
+                      </div>
+                      <h3 className="text-lg font-medium text-gray-900 mb-2">
+                        {filters.search || filters.status.length > 0 || filters.priority.length > 0
+                          ? '未找到匹配的项目'
+                          : '还没有项目'}
+                      </h3>
+                      <p className="text-gray-600 mb-6">
+                        {filters.search || filters.status.length > 0 || filters.priority.length > 0
+                          ? '尝试调整筛选条件或清除筛选器'
+                          : '创建您的第一个项目开始管理工作'}
+                      </p>
+                      <button
+                        onClick={handleCreateProject}
+                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>创建项目</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
 
                 {/* 主内容：项目进度图 + 最近活动 */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-6">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
                   <div className="lg:col-span-2">
                     <ProjectProgressChart
                       projects={recentProjects}
@@ -621,6 +771,18 @@ export const ProjectsPage: React.FC = () => {
                       onDelete={handleDeleteTask}
                       onStatusChange={(id, s) => { void handleTaskStatusChange(id, s as Task['status']); }}
                       onCreateTask={(status) => openCreateTask({ status: status as Task['status'] })}
+                      onBatchUpdate={async () => {
+                        // 刷新任务列表
+                        if (selectedProjectId) {
+                          try {
+                            const res = await taskService.getProjectTasks(selectedProjectId);
+                            setProjectTasks(res.tasks || []);
+                            void refreshTaskStats();
+                          } catch (err) {
+                            console.error('刷新任务列表失败:', err);
+                          }
+                        }
+                      }}
                     />
                   </div>
                 )}
@@ -735,6 +897,17 @@ export const ProjectsPage: React.FC = () => {
         onSubmit={handleTaskSubmit}
         editTask={editingTask}
         initialValues={taskInitialValues}
+      />
+
+      {/* Project Detail Modal */}
+      <ProjectDetailModal
+        isOpen={showDetailModal}
+        project={detailProject}
+        onClose={() => {
+          setShowDetailModal(false);
+          setDetailProject(null);
+        }}
+        onEdit={handleEditFromDetail}
       />
     </div>
   );

@@ -1,11 +1,22 @@
-import pool from '../config/database';
+import { supabaseAdmin } from '../config/database';
 import { Todo } from '../types';
 
 export class TodoModel {
   static async findById(id: string, userId: string): Promise<Todo | null> {
-    const query = 'SELECT * FROM todos WHERE id = $1 AND user_id = $2';
-    const result = await pool.query(query, [id, userId]);
-    return result.rows[0] || null;
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error finding todo by id:', error);
+      throw error;
+    }
+    
+    return data;
   }
 
   static async findByUserId(
@@ -23,84 +34,65 @@ export class TodoModel {
       orderDir?: 'ASC' | 'DESC';
     } = {}
   ): Promise<Todo[]> {
-    let query = 'SELECT * FROM todos WHERE user_id = $1';
-    const values: any[] = [userId];
-    let paramCount = 2;
+    let query = supabaseAdmin
+      .from('todos')
+      .select('*')
+      .eq('user_id', userId);
 
     if (options.note_id) {
-      query += ` AND note_id = $${paramCount++}`;
-      values.push(options.note_id);
+      query = query.eq('note_id', options.note_id);
     }
 
     if (options.status) {
-      query += ` AND status = $${paramCount++}`;
-      values.push(options.status);
+      query = query.eq('status', options.status);
     }
 
     if (options.priority) {
-      // 同时兼容中文与英文存量数据
+      // 兼容中英文优先级
       const zh = options.priority;
       const en = zh === '高' ? 'high' : zh === '中' ? 'medium' : zh === '低' ? 'low' : undefined;
       if (en) {
-        query += ` AND (priority = $${paramCount} OR priority = $${paramCount + 1})`;
-        values.push(zh, en);
-        paramCount += 2;
+        query = query.or(`priority.eq.${zh},priority.eq.${en}`);
       } else {
-        query += ` AND priority = $${paramCount++}`;
-        values.push(zh);
+        query = query.eq('priority', zh);
       }
     }
 
     if (options.completed !== undefined) {
-      query += ` AND completed = $${paramCount++}`;
-      values.push(options.completed);
+      query = query.eq('completed', options.completed);
     }
 
     if (options.due_date_from) {
-      query += ` AND due_date >= $${paramCount++}`;
-      values.push(options.due_date_from);
+      query = query.gte('due_date', options.due_date_from.toISOString());
     }
 
     if (options.due_date_to) {
-      query += ` AND due_date <= $${paramCount++}`;
-      values.push(options.due_date_to);
+      query = query.lte('due_date', options.due_date_to.toISOString());
     }
 
-    // 排序支持：默认按创建时间降序
-    const dir = options.orderDir === 'ASC' ? 'ASC' : 'DESC';
-    switch (options.orderBy) {
-      case 'priority':
-        query += ` ORDER BY CASE 
-          WHEN priority IN ('高','high') THEN 3
-          WHEN priority IN ('中','medium') THEN 2
-          WHEN priority IN ('低','low') THEN 1
-          ELSE 0
-        END ${dir}`;
-        break;
-      case 'due_date':
-        query += ` ORDER BY due_date ${dir} NULLS LAST`;
-        break;
-      case 'updated_at':
-        query += ` ORDER BY updated_at ${dir}`;
-        break;
-      case 'created_at':
-      default:
-        query += ` ORDER BY created_at ${dir}`;
-        break;
-    }
+    // 排序
+    const ascending = options.orderDir === 'ASC';
+    const orderBy = options.orderBy || 'created_at';
+    query = query.order(orderBy, { ascending, nullsFirst: false });
 
+    // 分页
     if (options.limit) {
-      query += ` LIMIT $${paramCount++}`;
-      values.push(options.limit);
+      query = query.limit(options.limit);
     }
 
     if (options.offset) {
-      query += ` OFFSET $${paramCount++}`;
-      values.push(options.offset);
+      const end = options.offset + (options.limit || 20) - 1;
+      query = query.range(options.offset, end);
     }
 
-    const result = await pool.query(query, values);
-    return result.rows;
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error finding todos:', error);
+      throw error;
+    }
+    
+    return data || [];
   }
 
   static async create(todoData: {
@@ -111,22 +103,25 @@ export class TodoModel {
     due_date?: Date;
     priority?: '低' | '中' | '高';
   }): Promise<Todo> {
-    const query = `
-      INSERT INTO todos (user_id, note_id, title, description, due_date, priority)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-    `;
-    const values = [
-      todoData.user_id,
-      todoData.note_id,
-      todoData.title,
-      todoData.description || null,
-      todoData.due_date || null,
-      todoData.priority || '中'
-    ];
-
-    const result = await pool.query(query, values);
-    return result.rows[0];
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .insert({
+        user_id: todoData.user_id,
+        note_id: todoData.note_id,
+        title: todoData.title,
+        description: todoData.description || null,
+        due_date: todoData.due_date || null,
+        priority: todoData.priority || '中'
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Error creating todo:', error);
+      throw error;
+    }
+    
+    return data;
   }
 
   static async createBatch(todos: {
@@ -139,30 +134,26 @@ export class TodoModel {
   }[]): Promise<Todo[]> {
     if (todos.length === 0) return [];
 
-    const values: any[] = [];
-    const placeholders: string[] = [];
+    const insertData = todos.map(todo => ({
+      user_id: todo.user_id,
+      note_id: todo.note_id,
+      title: todo.title,
+      description: todo.description || null,
+      due_date: todo.due_date || null,
+      priority: todo.priority || '中'
+    }));
+
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .insert(insertData)
+      .select();
     
-    todos.forEach((todo, index) => {
-      const baseIndex = index * 6;
-      placeholders.push(`($${baseIndex + 1}, $${baseIndex + 2}, $${baseIndex + 3}, $${baseIndex + 4}, $${baseIndex + 5}, $${baseIndex + 6})`);
-      values.push(
-        todo.user_id,
-        todo.note_id,
-        todo.title,
-        todo.description || null,
-        todo.due_date || null,
-        todo.priority || '中'
-      );
-    });
-
-    const query = `
-      INSERT INTO todos (user_id, note_id, title, description, due_date, priority)
-      VALUES ${placeholders.join(', ')}
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, values);
-    return result.rows;
+    if (error) {
+      console.error('Error creating batch todos:', error);
+      throw error;
+    }
+    
+    return data || [];
   }
 
   static async update(id: string, userId: string, todoData: {
@@ -174,65 +165,50 @@ export class TodoModel {
     completed?: boolean;
     completed_at?: Date | null;
   }): Promise<Todo | null> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
-
-    if (todoData.title !== undefined) {
-      fields.push(`title = $${paramCount++}`);
-      values.push(todoData.title);
-    }
-
-    if (todoData.description !== undefined) {
-      fields.push(`description = $${paramCount++}`);
-      values.push(todoData.description);
-    }
-
-    if (todoData.due_date !== undefined) {
-      fields.push(`due_date = $${paramCount++}`);
-      values.push(todoData.due_date);
-    }
-
-    if (todoData.priority !== undefined) {
-      fields.push(`priority = $${paramCount++}`);
-      values.push(todoData.priority);
-    }
-
-    if (todoData.status !== undefined) {
-      fields.push(`status = $${paramCount++}`);
-      values.push(todoData.status);
-    }
-
-    if (todoData.completed !== undefined) {
-      fields.push(`completed = $${paramCount++}`);
-      values.push(todoData.completed);
-    }
-
-    if (todoData.completed_at !== undefined) {
-      fields.push(`completed_at = $${paramCount++}`);
-      values.push(todoData.completed_at);
-    }
-
-    if (fields.length === 0) {
+    if (Object.keys(todoData).length === 0) {
       return this.findById(id, userId);
     }
 
-    values.push(id, userId);
-    const query = `
-      UPDATE todos 
-      SET ${fields.join(', ')}
-      WHERE id = $${paramCount++} AND user_id = $${paramCount}
-      RETURNING *
-    `;
+    const updates: any = {};
 
-    const result = await pool.query(query, values);
-    return result.rows[0] || null;
+    if (todoData.title !== undefined) updates.title = todoData.title;
+    if (todoData.description !== undefined) updates.description = todoData.description;
+    if (todoData.due_date !== undefined) updates.due_date = todoData.due_date;
+    if (todoData.priority !== undefined) updates.priority = todoData.priority;
+    if (todoData.status !== undefined) updates.status = todoData.status;
+    if (todoData.completed !== undefined) updates.completed = todoData.completed;
+    if (todoData.completed_at !== undefined) updates.completed_at = todoData.completed_at;
+
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      console.error('Error updating todo:', error);
+      throw error;
+    }
+    
+    return data;
   }
 
   static async delete(id: string, userId: string): Promise<boolean> {
-    const query = 'DELETE FROM todos WHERE id = $1 AND user_id = $2';
-    const result = await pool.query(query, [id, userId]);
-    return (result.rowCount ?? 0) > 0;
+    const { error } = await supabaseAdmin
+      .from('todos')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error deleting todo:', error);
+      throw error;
+    }
+    
+    return true;
   }
 
   static async getStatistics(userId: string): Promise<{
@@ -243,28 +219,53 @@ export class TodoModel {
     not_started: number;
     overdue: number;
   }> {
-    const query = `
-      SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN completed = TRUE THEN 1 END) as completed,
-        COUNT(CASE WHEN completed = FALSE THEN 1 END) as pending,
-        COUNT(CASE WHEN status = '进行中' AND completed = FALSE THEN 1 END) as in_progress,
-        COUNT(CASE WHEN status = '未开始' AND completed = FALSE THEN 1 END) as not_started,
-        COUNT(CASE WHEN due_date IS NOT NULL AND due_date < NOW() AND completed = FALSE THEN 1 END) as overdue
-      FROM todos 
-      WHERE user_id = $1
-    `;
+    // 使用 RPC 调用数据库函数获取统计
+    const { data, error } = await supabaseAdmin
+      .rpc('get_todo_statistics', { user_id_param: userId });
     
-    const result = await pool.query(query, [userId]);
-    const row = result.rows[0];
+    if (error) {
+      console.error('Error getting todo statistics:', error);
+      // 如果 RPC 函数不存在，回退到手动统计
+      const { data: todos, error: fetchError } = await supabaseAdmin
+        .from('todos')
+        .select('completed, status, due_date')
+        .eq('user_id', userId);
+      
+      if (fetchError) throw fetchError;
+      
+      const now = new Date();
+      const stats = {
+        total: todos?.length || 0,
+        completed: 0,
+        pending: 0,
+        in_progress: 0,
+        not_started: 0,
+        overdue: 0
+      };
+      
+      todos?.forEach(todo => {
+        if (todo.completed) {
+          stats.completed++;
+        } else {
+          stats.pending++;
+          if (todo.status === '进行中') stats.in_progress++;
+          if (todo.status === '未开始') stats.not_started++;
+          if (todo.due_date && new Date(todo.due_date) < now) {
+            stats.overdue++;
+          }
+        }
+      });
+      
+      return stats;
+    }
     
-    return {
-      total: parseInt(row.total),
-      completed: parseInt(row.completed),
-      pending: parseInt(row.pending),
-      in_progress: parseInt(row.in_progress),
-      not_started: parseInt(row.not_started),
-      overdue: parseInt(row.overdue)
+    return data || {
+      total: 0,
+      completed: 0,
+      pending: 0,
+      in_progress: 0,
+      not_started: 0,
+      overdue: 0
     };
   }
 
@@ -281,68 +282,56 @@ export class TodoModel {
       completed_at?: Date | null;
     }
   ): Promise<Todo[]> {
-    const fields: string[] = [];
-    const values: any[] = [];
-    let paramCount = 1;
-
-    if (todoData.title !== undefined) {
-      fields.push(`title = $${paramCount++}`);
-      values.push(todoData.title);
-    }
-    if (todoData.description !== undefined) {
-      fields.push(`description = $${paramCount++}`);
-      values.push(todoData.description);
-    }
-    if (todoData.due_date !== undefined) {
-      fields.push(`due_date = $${paramCount++}`);
-      values.push(todoData.due_date);
-    }
-    if (todoData.priority !== undefined) {
-      fields.push(`priority = $${paramCount++}`);
-      values.push(todoData.priority);
-    }
-    if (todoData.status !== undefined) {
-      fields.push(`status = $${paramCount++}`);
-      values.push(todoData.status);
-    }
-    if (todoData.completed !== undefined) {
-      fields.push(`completed = $${paramCount++}`);
-      values.push(todoData.completed);
-    }
-    if (todoData.completed_at !== undefined) {
-      fields.push(`completed_at = $${paramCount++}`);
-      values.push(todoData.completed_at);
-    }
-
-    if (fields.length === 0) {
+    console.log('[TodoModel.batchUpdate] 输入参数:', { userId, ids, todoData });
+    
+    if (Object.keys(todoData).length === 0 || ids.length === 0) {
+      console.log('[TodoModel.batchUpdate] 跳过：空数据或空ID列表');
       return [];
     }
 
-    values.push(userId);
-    values.push(ids);
+    const updates: any = {};
+    if (todoData.title !== undefined) updates.title = todoData.title;
+    if (todoData.description !== undefined) updates.description = todoData.description;
+    if (todoData.due_date !== undefined) updates.due_date = todoData.due_date;
+    if (todoData.priority !== undefined) updates.priority = todoData.priority;
+    if (todoData.status !== undefined) updates.status = todoData.status;
+    if (todoData.completed !== undefined) updates.completed = todoData.completed;
+    if (todoData.completed_at !== undefined) updates.completed_at = todoData.completed_at;
 
-    const query = `
-      UPDATE todos
-      SET ${fields.join(', ')}
-      WHERE user_id = $${paramCount++} AND id = ANY($${paramCount}::uuid[])
-      RETURNING *
-    `;
+    console.log('[TodoModel.batchUpdate] 更新字段:', updates);
 
-    const result = await pool.query(query, values);
-    return result.rows || [];
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .update(updates)
+      .eq('user_id', userId)
+      .in('id', ids)
+      .select();
+    
+    if (error) {
+      console.error('[TodoModel.batchUpdate] 错误:', error);
+      throw error;
+    }
+    
+    console.log('[TodoModel.batchUpdate] 成功更新:', data?.length, '条记录');
+    return data || [];
   }
 
   static async batchDelete(userId: string, ids: string[]): Promise<string[]> {
-    const query = `
-      DELETE FROM todos
-      WHERE user_id = $1 AND id = ANY($2::uuid[])
-      RETURNING id
-    `;
-    const result = await pool.query(query, [userId, ids]);
-    return (result.rows || []).map((r: any) => r.id);
+    const { data, error } = await supabaseAdmin
+      .from('todos')
+      .delete()
+      .eq('user_id', userId)
+      .in('id', ids)
+      .select('id');
+    
+    if (error) {
+      console.error('Error batch deleting todos:', error);
+      throw error;
+    }
+    
+    return (data || []).map((r: any) => r.id);
   }
 
-  // 搜索：按标题、描述，支持 ILIKE 与简易全文检索
   static async searchByUserId(
     userId: string,
     searchText: string,
@@ -355,72 +344,54 @@ export class TodoModel {
       orderDir?: 'ASC' | 'DESC';
     } = {}
   ): Promise<Todo[]> {
-    let query = 'SELECT * FROM todos WHERE user_id = $1';
-    const values: any[] = [userId];
-    let paramCount = 2;
+    let query = supabaseAdmin
+      .from('todos')
+      .select('*')
+      .eq('user_id', userId);
 
     if (options.completed !== undefined) {
-      query += ` AND completed = $${paramCount++}`;
-      values.push(options.completed);
+      query = query.eq('completed', options.completed);
     }
 
     if (options.priority) {
       const zh = options.priority;
       const en = zh === '高' ? 'high' : zh === '中' ? 'medium' : zh === '低' ? 'low' : undefined;
       if (en) {
-        query += ` AND (priority = $${paramCount} OR priority = $${paramCount + 1})`;
-        values.push(zh, en);
-        paramCount += 2;
+        query = query.or(`priority.eq.${zh},priority.eq.${en}`);
       } else {
-        query += ` AND priority = $${paramCount++}`;
-        values.push(zh);
+        query = query.eq('priority', zh);
       }
     }
 
     if (searchText && searchText.trim().length > 0) {
-      query += ` AND (
-        title ILIKE $${paramCount} OR 
-        description ILIKE $${paramCount} OR 
-        to_tsvector('simple', COALESCE(title,'') || ' ' || COALESCE(description,'')) @@ plainto_tsquery('simple', $${paramCount + 1})
-      )`;
-      values.push(`%${searchText}%`, searchText);
-      paramCount += 2;
+      query = query.or(
+        `title.ilike.%${searchText}%,description.ilike.%${searchText}%`
+      );
     }
 
-    const dir = options.orderDir === 'ASC' ? 'ASC' : 'DESC';
-    switch (options.orderBy) {
-      case 'priority':
-        query += ` ORDER BY CASE 
-          WHEN priority IN ('高','high') THEN 3
-          WHEN priority IN ('中','medium') THEN 2
-          WHEN priority IN ('低','low') THEN 1
-          ELSE 0
-        END ${dir}`;
-        break;
-      case 'due_date':
-        query += ` ORDER BY due_date ${dir} NULLS LAST`;
-        break;
-      case 'updated_at':
-        query += ` ORDER BY updated_at ${dir}`;
-        break;
-      case 'created_at':
-      default:
-        query += ` ORDER BY created_at ${dir}`;
-        break;
-    }
+    // 排序
+    const ascending = options.orderDir === 'ASC';
+    const orderBy = options.orderBy || 'created_at';
+    query = query.order(orderBy, { ascending, nullsFirst: false });
 
+    // 分页
     if (options.limit) {
-      query += ` LIMIT $${paramCount++}`;
-      values.push(options.limit);
+      query = query.limit(options.limit);
     }
 
     if (options.offset) {
-      query += ` OFFSET $${paramCount++}`;
-      values.push(options.offset);
+      const end = options.offset + (options.limit || 20) - 1;
+      query = query.range(options.offset, end);
     }
 
-    const result = await pool.query(query, values);
-    return result.rows || [];
+    const { data, error } = await query;
+    
+    if (error) {
+      console.error('Error searching todos:', error);
+      throw error;
+    }
+    
+    return data || [];
   }
 
   static async getSearchCount(
@@ -428,39 +399,38 @@ export class TodoModel {
     searchText: string,
     options: { completed?: boolean; priority?: '低' | '中' | '高' } = {}
   ): Promise<number> {
-    let query = 'SELECT COUNT(*) as count FROM todos WHERE user_id = $1';
-    const values: any[] = [userId];
-    let paramCount = 2;
+    let query = supabaseAdmin
+      .from('todos')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
 
     if (options.completed !== undefined) {
-      query += ` AND completed = $${paramCount++}`;
-      values.push(options.completed);
+      query = query.eq('completed', options.completed);
     }
 
     if (options.priority) {
       const zh = options.priority;
       const en = zh === '高' ? 'high' : zh === '中' ? 'medium' : zh === '低' ? 'low' : undefined;
       if (en) {
-        query += ` AND (priority = $${paramCount} OR priority = $${paramCount + 1})`;
-        values.push(zh, en);
-        paramCount += 2;
+        query = query.or(`priority.eq.${zh},priority.eq.${en}`);
       } else {
-        query += ` AND priority = $${paramCount++}`;
-        values.push(zh);
+        query = query.eq('priority', zh);
       }
     }
 
     if (searchText && searchText.trim().length > 0) {
-      query += ` AND (
-        title ILIKE $${paramCount} OR 
-        description ILIKE $${paramCount} OR 
-        to_tsvector('simple', COALESCE(title,'') || ' ' || COALESCE(description,'')) @@ plainto_tsquery('simple', $${paramCount + 1})
-      )`;
-      values.push(`%${searchText}%`, searchText);
-      paramCount += 2;
+      query = query.or(
+        `title.ilike.%${searchText}%,description.ilike.%${searchText}%`
+      );
     }
 
-    const result = await pool.query(query, values);
-    return parseInt(result.rows?.[0]?.count ?? '0');
+    const { count, error } = await query;
+    
+    if (error) {
+      console.error('Error counting search todos:', error);
+      throw error;
+    }
+    
+    return count || 0;
   }
 }

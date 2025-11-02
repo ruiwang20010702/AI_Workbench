@@ -16,8 +16,12 @@ const app = express();
 // 这将消除 express-rate-limit 的 X-Forwarded-For 校验警告
 app.set('trust proxy', 1);
 
-// 安全中间件
-app.use(helmet());
+// 安全中间件 - 配置 helmet 允许跨域资源加载
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // 允许跨域资源
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  crossOriginEmbedderPolicy: false, // 关闭嵌入策略限制
+}));
 
 // CORS配置：开发环境允许所有源
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -28,6 +32,7 @@ const corsOptions: cors.CorsOptions = isDevelopment
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['Content-Disposition'], // 允许前端读取文件名
     }
   : {
       origin: (origin, callback) => {
@@ -44,6 +49,7 @@ const corsOptions: cors.CorsOptions = isDevelopment
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['Content-Disposition'], // 允许前端读取文件名
     };
 
 // 为所有请求添加 CORS

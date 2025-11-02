@@ -6,6 +6,7 @@ import aiRoutes from './ai';
 import notificationRoutes from './notifications';
 import projectRoutes from './projects';
 import weeklyReportsRoutes from './weeklyReports';
+import projectDocumentRoutes from './projectDocuments';
 
 const router = Router();
 
@@ -26,6 +27,9 @@ router.use('/notifications', notificationRoutes);
 
 // 项目管理相关路由
 router.use('/projects', projectRoutes);
+
+// 项目文档相关路由
+router.use('/', projectDocumentRoutes);
 
 // 周报相关路由
 router.use('/reports', weeklyReportsRoutes);

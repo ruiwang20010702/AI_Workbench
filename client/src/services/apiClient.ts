@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL ||  'http://localhost:3000/api';
 
 if (import.meta.env.DEV) {
   console.info('[apiClient] API_BASE_URL =', API_BASE_URL);
@@ -86,6 +86,13 @@ apiClient.interceptors.response.use(
       message = error.message || '未知错误';
     }
     
-    return Promise.reject(new Error(message));
+    // 创建包含详细信息的错误对象
+    const enrichedError = new Error(message);
+    // 保留原始响应信息，以便业务代码可以访问状态码和数据
+    if (error.response) {
+      (enrichedError as any).response = error.response;
+    }
+    
+    return Promise.reject(enrichedError);
   }
 );
